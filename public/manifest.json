@@ -1,0 +1,48 @@
+{
+  "name": "New Bawarchi 2 - Belonia's Favorite Restaurant",
+  "short_name": "New Bawarchi 2",
+  "description": "Authentic Bengali & Indian cuisine in Belonia, South Tripura. Famous for biryani, rolls, fish curry & more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#eab308",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "View Menu",
+      "short_name": "Menu",
+      "description": "Browse our full menu",
+      "url": "/menu",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Order Online",
+      "short_name": "Order",
+      "description": "Place a takeaway order",
+      "url": "/contact",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Call Us",
+      "short_name": "Call",
+      "description": "Call for takeaway",
+      "url": "tel:+919366986853",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

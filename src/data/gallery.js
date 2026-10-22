@@ -1,0 +1,88 @@
+export const galleryImages = [
+  {
+    id: 1,
+    src: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=800&h=600&fit=crop',
+    alt: 'Chicken Dum Biryani at New Bawarchi 2',
+    category: 'food',
+    caption: 'Signature Chicken Dum Biryani',
+  },
+  {
+    id: 2,
+    src: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=800&h=600&fit=crop',
+    alt: 'Chicken Butter Masala with Garlic Naan',
+    category: 'food',
+    caption: 'Chicken Butter Masala with Garlic Naan',
+  },
+  {
+    id: 3,
+    src: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=600&fit=crop',
+    alt: 'Chicken Roll at New Bawarchi 2',
+    category: 'food',
+    caption: 'Famous Chicken Roll',
+  },
+  {
+    id: 4,
+    src: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&h=600&fit=crop',
+    alt: 'Chicken Fried Rice at New Bawarchi 2',
+    category: 'food',
+    caption: 'Chicken Fried Rice (Half/Full)',
+  },
+  {
+    id: 5,
+    src: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop',
+    alt: 'Restaurant Interior - New Bawarchi 2',
+    category: 'interior',
+    caption: 'Cozy Dining Area',
+  },
+  {
+    id: 6,
+    src: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=800&h=600&fit=crop',
+    alt: 'Paneer Butter Masala at New Bawarchi 2',
+    category: 'food',
+    caption: 'Paneer Butter Masala',
+  },
+  {
+    id: 7,
+    src: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=800&h=600&fit=crop',
+    alt: 'Paneer Tikka Starter',
+    category: 'food',
+    caption: 'Paneer Tikka Starter',
+  },
+  {
+    id: 8,
+    src: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&h=600&fit=crop',
+    alt: 'Chilli Chicken Dry at New Bawarchi 2',
+    category: 'food',
+    caption: 'Chilli Chicken Dry',
+  },
+  {
+    id: 9,
+    src: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=800&h=600&fit=crop',
+    alt: 'Restaurant Interior Seating',
+    category: 'interior',
+    caption: 'Comfortable Seating',
+  },
+  {
+    id: 10,
+    src: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&h=600&fit=crop',
+    alt: 'Tandoori Items from Clay Oven',
+    category: 'food',
+    caption: 'Fresh from Tandoor',
+  },
+  {
+    id: 11,
+    src: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800&h=600&fit=crop',
+    alt: 'Restaurant Ambiance',
+    category: 'interior',
+    caption: 'Warm Ambiance',
+  },
+  {
+    id: 12,
+    src: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=600&fit=crop',
+    alt: 'Rolls & Wraps Selection',
+    category: 'food',
+    caption: 'Popular Rolls & Wraps',
+  },
+];
+
+export const galleryCategories = ['all', 'food', 'interior'];
