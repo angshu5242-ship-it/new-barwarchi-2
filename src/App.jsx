@@ -27,6 +27,7 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/admin123" element={<Admin />} />
                 <Route path="/menu-print" element={<MenuPrint />} />
+                <Route path="/menu-print/:category" element={<MenuPrint />} />
               </Routes>
             </main>
             <Footer />

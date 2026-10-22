@@ -124,13 +124,6 @@ export default function MenuPrint() {
           Press Ctrl+P (Cmd+P on Mac) to print • Use "Save as PDF" for digital copy
         </div>
       </div>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          @page { margin: 1.5cm; size: A4; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-      `}</style>
     </div>
   );
 }

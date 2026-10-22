@@ -405,4 +405,30 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
+
+  /* Print utilities */
+  .no-print {
+    display: block;
+  }
+  
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .page-break-inside-avoid {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    
+    body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    @page {
+      margin: 1.5cm;
+      size: A4;
+    }
+  }
 }
