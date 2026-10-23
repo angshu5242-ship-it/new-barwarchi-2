@@ -1,329 +1,417 @@
 import { useState } from 'react';
-import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
+import { Link } from 'react-router-dom';
+import { useSiteData } from '../context/SiteDataContext';
+import OpenNowBadge from '../components/OpenNowBadge';
+import { buildContactMessage, buildReservationMessage, buildWhatsAppUrl } from '../utils/whatsapp';
+
+const timeSlots = [
+  '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
+  '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
+  '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
+  '5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM',
+  '8:00 PM', '8:30 PM', '9:00 PM', '9:30 PM',
+];
+
+const today = new Date().toISOString().split('T')[0];
 
 export default function Contact() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    subject: '',
-    message: '',
+  const { restaurantInfo } = useSiteData();
+  const [reservation, setReservation] = useState({
+    name: '', phone: '', date: today, time: '7:00 PM', guests: '2', notes: '',
   });
-  const [formStatus, setFormStatus] = useState('idle');
-  const [contactRef, contactVisible] = useIntersectionObserver();
-  const [infoRef, infoVisible] = useIntersectionObserver();
+  const [reservationSent, setReservationSent] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '', email: '', phone: '', subject: '', message: '',
+  });
+  const [formSent, setFormSent] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleReservationChange = (event) => {
+    const { name, value } = event.target;
+    setReservation((prev) => ({ ...prev, [name]: value }));
+    setReservationSent(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormStatus('submitting');
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setFormStatus('success');
-    setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-    
-    setTimeout(() => setFormStatus('idle'), 5000);
+  const handleReservationSubmit = (event) => {
+    event.preventDefault();
+    const url = buildWhatsAppUrl(
+      restaurantInfo.whatsapp,
+      buildReservationMessage(reservation, restaurantInfo),
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setReservationSent(true);
+  };
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormSent(false);
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const url = buildWhatsAppUrl(
+      restaurantInfo.whatsapp,
+      buildContactMessage(formData, restaurantInfo),
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setFormSent(true);
   };
 
   const contactInfo = [
     {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      title: 'Visit Us',
-      details: [
-        'College Square',
-        'Belonia, Tripura 799155',
-      ],
-      link: {
-        href: 'https://www.google.com/maps/dir/?api=1&destination=College+Square+Belonia+Tripura',
-        text: 'Get Directions →',
-      },
+      title: 'Visit us',
+      icon: '📍',
+      details: [restaurantInfo.address, 'Look for the bright yellow sign at College Square'],
+      link: { href: restaurantInfo.directionsUrl, text: 'Get directions' },
     },
     {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-        </svg>
-      ),
-      title: 'Call Us',
+      title: 'Call us',
+      icon: '📞',
       details: [
-        '+91 93669 86853',
-        'Daily: 8:00 AM - 10:00 PM',
-        'Takeaway orders welcome',
-      ],
-      link: {
-        href: 'tel:+919366986853',
-        text: 'Call Now →',
-      },
+        restaurantInfo.phone,
+        restaurantInfo.phone2,
+        restaurantInfo.hours,
+        'Takeaway & delivery orders welcome',
+      ].filter(Boolean),
+      link: { href: `tel:${restaurantInfo.phoneRaw}`, text: 'Call now' },
     },
     {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      ),
-      title: 'Send a Message',
-      details: [
-        'Fill out the form to send us',
-        'a message directly',
-        'We typically respond within 24 hours',
-      ],
+      title: 'Message us',
+      icon: '💬',
+      details: ['WhatsApp is the fastest way to reach the kitchen', 'We usually reply within a few minutes'],
       link: {
-        href: '#contact-form',
-        text: 'Send Message →',
+        href: buildWhatsAppUrl(restaurantInfo.whatsapp, `Hello ${restaurantInfo.name}!`),
+        text: 'Open WhatsApp',
       },
     },
   ];
 
-  const subjects = [
-    { value: '', label: 'Select a topic' },
-    { value: 'reservation', label: 'Table Reservation' },
-    { value: 'takeaway', label: 'Takeaway Order' },
-    { value: 'catering', label: 'Catering Inquiry' },
-    { value: 'feedback', label: 'Feedback / Complaint' },
-    { value: 'other', label: 'Other' },
+  const faqs = [
+    {
+      q: 'Do you offer home delivery?',
+      a: `Yes, we deliver around Belonia. Place an order online with your address, or call ${restaurantInfo.phone}. Delivery charge and timing are confirmed on WhatsApp.`,
+    },
+    {
+      q: 'What are your opening hours?',
+      a: 'The kitchen is open every day from 8:00 AM to 10:00 PM, including weekends and holidays.',
+    },
+    {
+      q: 'Do you have vegetarian options?',
+      a: 'Yes — paneer butter masala, veg fried rice, chowmin, dal tadka, momos, salads and more. Veg dishes are marked clearly on the menu.',
+    },
+    {
+      q: 'Can I reserve a table for a group?',
+      a: 'Absolutely. Use the reservation form on this page or call us. For groups of 8 or more, please message us a day in advance so we can set up the tables.',
+    },
+    {
+      q: 'Do you accept card payments?',
+      a: 'Yes — cash, UPI and all major debit/credit cards are accepted.',
+    },
+    {
+      q: 'Is parking available?',
+      a: 'Street parking is available around College Square. Two-wheeler parking is usually easiest in the evening.',
+    },
   ];
 
   return (
     <div className="min-h-screen bg-surface-50">
-      {/* Page Header */}
-      <header className="bg-white border-b border-surface-200 pt-20 pb-12">
-        <div className="section-container">
-          <div className="max-w-3xl mx-auto text-center">
-            <h1 className="font-display font-semibold text-3xl md:text-4xl lg:text-5xl text-gray-900 mb-4">
-              Contact Us
+      <header className="relative overflow-hidden border-b border-surface-200 bg-gradient-to-br from-[#fff6e6] via-[#fffdf8] to-[#f5ecdc] pb-12 pt-24 md:pb-16 md:pt-32">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border-[32px] border-brand-100/70" aria-hidden="true" />
+        <div className="section-container relative">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="flex justify-center">
+              <OpenNowBadge />
+            </div>
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+              We’d love to feed you
+            </p>
+            <h1 className="mt-3 font-display text-4xl font-semibold text-gray-900 md:text-5xl">
+              Contact & reservations
             </h1>
-            <p className="text-lg text-gray-600">
-              Have a question? Want to make a reservation or place a takeaway order? 
-              We'd love to hear from you.
+            <p className="mt-4 text-lg leading-relaxed text-gray-600">
+              Book a table, ask about a dish, or send a takeaway order to our kitchen. WhatsApp is
+              usually the quickest way to reach us.
             </p>
           </div>
         </div>
       </header>
 
-      <main className="section-container py-12">
-        <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
-          {/* Contact Info Cards */}
-          <aside ref={infoRef} className="lg:col-span-1 space-y-4" aria-labelledby="contact-info-heading">
-            <h2 id="contact-info-heading" className="sr-only">Contact Information</h2>
-            {contactInfo.map((info, index) => (
-              <article
-                key={info.title}
-                ref={index === 0 ? infoRef : null}
-                className={`card p-6 ${infoVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}
-                style={{ animationDelay: `${index * 100}ms` }}
+      <main className="section-container py-10 md:py-14">
+        {/* Info cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {contactInfo.map((info) => (
+            <article key={info.title} className="rounded-2xl border border-surface-200 bg-white p-6 shadow-soft">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 text-xl" aria-hidden="true">
+                {info.icon}
+              </span>
+              <h2 className="mt-4 font-display text-xl font-semibold text-gray-900">{info.title}</h2>
+              <ul className="mt-2 space-y-1 text-sm leading-relaxed text-gray-600">
+                {info.details.map((detail) => <li key={detail}>{detail}</li>)}
+              </ul>
+              <a
+                href={info.link.href}
+                target={info.link.href.startsWith('http') ? '_blank' : undefined}
+                rel={info.link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline"
               >
-                <div className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center text-brand-600 mb-4">
-                  {info.icon}
-                </div>
-                <h3 className="font-display font-semibold text-lg text-gray-900 mb-3">{info.title}</h3>
-                <ul className="space-y-1 text-gray-600 text-sm mb-4" role="list">
-                  {info.details.map((detail, i) => (
-                    <li key={i}>{detail}</li>
-                  ))}
-                </ul>
-                <a
-                  href={info.link.href}
-                  target={info.link.href.startsWith('http') ? '_blank' : undefined}
-                  rel={info.link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-medium text-sm transition-colors"
-                >
-                  {info.link.text}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-              </article>
-            ))}
-          </aside>
-
-          {/* Contact Form */}
-          <section ref={contactRef} className="lg:col-span-2" aria-labelledby="form-heading">
-            <h2 id="form-heading" className={`font-display font-semibold text-2xl md:text-3xl text-gray-900 mb-6 ${contactVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              Send Us a Message
-            </h2>
-
-            <form onSubmit={handleSubmit} className={`card p-6 md:p-8 ${contactVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }} noValidate>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="name" className="label">Full Name *</label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="input-field"
-                    placeholder="Your name"
-                    aria-required="true"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="phone" className="label">Phone Number *</label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    required
-                    className="input-field"
-                    placeholder="+91 93669 86853"
-                    aria-required="true"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="email" className="label">Email Address</label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="you@example.com"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="subject" className="label">Subject *</label>
-                  <select
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="input-field appearance-none"
-                    aria-required="true"
-                  >
-                    {subjects.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label htmlFor="message" className="label">Message *</label>
-                <textarea
-                  id="message"
-                  name="message"
-                  value={formData.message}
-                  onChange={handleChange}
-                  required
-                  rows={5}
-                  className="input-field resize-y min-h-[120px]"
-                  placeholder="Tell us about your inquiry, reservation request, or feedback..."
-                  aria-required="true"
-                />
-              </div>
-
-              <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                <button
-                  type="submit"
-                  disabled={formStatus === 'submitting'}
-                  className="btn-primary w-full sm:w-auto"
-                >
-                  {formStatus === 'submitting' ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Sending...
-                    </>
-                  ) : (
-                    'Send Message'
-                  )}
-                </button>
-                {formStatus === 'success' && (
-                  <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Message sent successfully! We'll get back to you soon.
-                  </div>
-                )}
-              </div>
-
-              <p className="mt-4 text-sm text-gray-500">
-                * Required fields. For urgent inquiries or takeaway orders, please call 
-                <a href="tel:+919366986853" className="text-brand-600 hover:text-brand-700 font-medium">+91 93669 86853</a>.
-              </p>
-            </form>
-          </section>
+                {info.link.text}
+                <span aria-hidden="true">→</span>
+              </a>
+            </article>
+          ))}
         </div>
 
-        {/* Map Section */}
-        <section className="mt-16" aria-labelledby="map-heading">
-          <h2 id="map-heading" className="sr-only">Location Map</h2>
-          <div className="rounded-xl overflow-hidden shadow-lg border border-surface-200 aspect-video bg-surface-100">
-            <iframe
-              title="New Bawarchi 2 location on Google Maps"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3722.5!2d91.458415!3d23.250753!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x375b6a1a3c5c5c5c%3A0x5c5c5c5c5c5c5c5c!2sNew%20Bawarchi%202!5e0!3m2!1sen!2sin!4v1698000000000!5m2!1sen!2sin"
-              style={{ border: 0 }}
-              width="100%"
-              height="100%"
-              allowFullScreen=""
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
+        {/* Reservation */}
+        <section id="reserve" className="mt-12 scroll-mt-28">
+          <div className="overflow-hidden rounded-3xl border border-surface-200 bg-white shadow-soft">
+            <div className="grid lg:grid-cols-[0.92fr_1.08fr]">
+              <div className="relative min-h-64 overflow-hidden bg-stone-900 p-7 text-white md:p-10">
+                <img
+                  src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1000&q=82"
+                  alt="A warm table setting at New Bawarchi 2"
+                  className="absolute inset-0 h-full w-full object-cover opacity-55"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-stone-950/20" />
+                <div className="relative flex h-full flex-col justify-end">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-300">
+                    Reserve a table
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-semibold md:text-4xl">
+                    Save a seat at the table.
+                  </h2>
+                  <p className="mt-3 max-w-md text-sm leading-relaxed text-white/80">
+                    Tell us when you’re coming and how many seats you need. We’ll confirm on
+                    WhatsApp — no payment or booking fee required.
+                  </p>
+                  <div className="mt-6 space-y-2 text-sm text-white/85">
+                    <p>🕗 {restaurantInfo.hours}</p>
+                    <p>📍 {restaurantInfo.address}</p>
+                    <p>👨‍👩‍👧 Groups of 8+ — please book a day ahead</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleReservationSubmit} className="p-6 md:p-9">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="res-name" className="label">Your name *</label>
+                    <input
+                      id="res-name"
+                      name="name"
+                      type="text"
+                      required
+                      value={reservation.name}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="res-phone" className="label">Phone number *</label>
+                    <input
+                      id="res-phone"
+                      name="phone"
+                      type="tel"
+                      required
+                      value={reservation.phone}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                      placeholder="+91 9XXXX XXXXX"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="res-date" className="label">Date *</label>
+                    <input
+                      id="res-date"
+                      name="date"
+                      type="date"
+                      required
+                      min={today}
+                      value={reservation.date}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="res-time" className="label">Time *</label>
+                    <select
+                      id="res-time"
+                      name="time"
+                      required
+                      value={reservation.time}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                    >
+                      {timeSlots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="res-guests" className="label">Guests *</label>
+                    <select
+                      id="res-guests"
+                      name="guests"
+                      required
+                      value={reservation.guests}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                    >
+                      {Array.from({ length: 14 }, (_, index) => index + 1).map((count) => (
+                        <option key={count} value={count}>{count} {count === 1 ? 'guest' : 'guests'}</option>
+                      ))}
+                      <option value="15+">15+ guests</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="res-notes" className="label">Anything we should know?</label>
+                    <input
+                      id="res-notes"
+                      name="notes"
+                      type="text"
+                      value={reservation.notes}
+                      onChange={handleReservationChange}
+                      className="input-field"
+                      placeholder="Birthday, high chair, quiet corner…"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-primary mt-5 w-full">
+                  Request table on WhatsApp
+                </button>
+                {reservationSent && (
+                  <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    WhatsApp should open with your request. Send the message and we’ll confirm
+                    shortly. If it didn’t open, call {restaurantInfo.phone}.
+                  </p>
+                )}
+                <p className="mt-3 text-center text-xs text-gray-500">
+                  Your request opens in WhatsApp. A table is confirmed only after we reply.
+                </p>
+              </form>
+            </div>
           </div>
         </section>
 
-        {/* FAQ Section */}
-        <section className="mt-16" aria-labelledby="faq-heading">
-          <h2 id="faq-heading" className="font-display font-semibold text-2xl md:text-3xl text-gray-900 text-center mb-10">
-            Frequently Asked Questions
-          </h2>
-          <div className="max-w-3xl mx-auto space-y-4">
-            {[
-              {
-                q: 'Do you offer home delivery?',
-                a: 'Currently we offer takeaway service. You can call us at +91 93669 86853 to place your order and pick it up at your convenience.',
-              },
-              {
-                q: 'What are your opening hours?',
-                a: 'We are open daily from 8:00 AM to 10:00 PM, including weekends and holidays.',
-              },
-              {
-                q: 'Do you have vegetarian options?',
-                a: 'Yes! We have a wide variety of vegetarian dishes including Paneer Butter Masala, Veg Fried Rice, Dal Tadka, and many more.',
-              },
-              {
-                q: 'Can I make a reservation for a large group?',
-                a: 'Absolutely! Please call us at +91 93669 86853 to discuss group bookings and any special arrangements.',
-              },
-              {
-                q: 'Do you accept card payments?',
-                a: 'Yes, we accept cash, UPI, and all major debit/credit cards.',
-              },
-              {
-                q: 'Is parking available?',
-                a: 'Street parking is available near the restaurant at College Square.',
-              },
-            ].map((faq, index) => (
-              <details key={index} className="card group">
-                <summary className="p-5 md:p-6 flex items-center justify-between cursor-pointer list-none">
-                  <h3 className="font-medium text-gray-900 pr-4">{faq.q}</h3>
-                  <svg className="w-5 h-5 text-gray-400 group-open:rotate-180 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </summary>
-                <div className="px-5 md:px-6 pb-5 md:pb-6 text-gray-600 border-t border-surface-200">
-                  {faq.a}
+        {/* Contact form + map */}
+        <div className="mt-12 grid gap-8 lg:grid-cols-2">
+          <section aria-labelledby="message-heading">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">General enquiries</p>
+            <h2 id="message-heading" className="mt-2 font-display text-3xl font-semibold text-gray-900">
+              Send us a message
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Feedback, catering questions or a dish you’d like us to make — tell us here.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-6 rounded-2xl border border-surface-200 bg-white p-6 shadow-soft">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="name" className="label">Full name *</label>
+                  <input id="name" name="name" type="text" required value={formData.name} onChange={handleChange} className="input-field" placeholder="Your name" />
                 </div>
-              </details>
-            ))}
+                <div>
+                  <label htmlFor="phone" className="label">Phone number *</label>
+                  <input id="phone" name="phone" type="tel" required value={formData.phone} onChange={handleChange} className="input-field" placeholder="+91 9XXXX XXXXX" />
+                </div>
+                <div>
+                  <label htmlFor="email" className="label">Email (optional)</label>
+                  <input id="email" name="email" type="email" value={formData.email} onChange={handleChange} className="input-field" placeholder="you@example.com" />
+                </div>
+                <div>
+                  <label htmlFor="subject" className="label">Topic *</label>
+                  <select id="subject" name="subject" required value={formData.subject} onChange={handleChange} className="input-field">
+                    <option value="">Choose a topic</option>
+                    <option value="Takeaway order">Takeaway order</option>
+                    <option value="Catering / bulk order">Catering / bulk order</option>
+                    <option value="Feedback">Feedback</option>
+                    <option value="Lost item">Lost item</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4">
+                <label htmlFor="message" className="label">Message *</label>
+                <textarea id="message" name="message" required rows={4} value={formData.message} onChange={handleChange} className="input-field resize-y" placeholder="How can we help?" />
+              </div>
+              <button type="submit" className="btn-primary mt-4 w-full">Send via WhatsApp</button>
+              {formSent && (
+                <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  WhatsApp should open with your message. Send it across and we’ll get back to you.
+                </p>
+              )}
+              <p className="mt-3 text-xs text-gray-500">
+                Prefer to talk? Call <a href={`tel:${restaurantInfo.phoneRaw}`} className="font-semibold text-brand-700 hover:underline">{restaurantInfo.phone}</a>.
+              </p>
+            </form>
+          </section>
+
+          <section aria-labelledby="map-heading" className="flex flex-col">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Find the yellow sign</p>
+            <h2 id="map-heading" className="mt-2 font-display text-3xl font-semibold text-gray-900">
+              College Square, Belonia
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">{restaurantInfo.address}</p>
+            <div className="mt-6 flex-1 overflow-hidden rounded-2xl border border-surface-200 bg-surface-100 shadow-soft">
+              <iframe
+                title={`${restaurantInfo.name} on Google Maps`}
+                src={restaurantInfo.mapsEmbedUrl}
+                style={{ border: 0, minHeight: '26rem' }}
+                width="100%"
+                height="100%"
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <a
+                href={restaurantInfo.directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+              >
+                Get directions
+              </a>
+              <a
+                href={restaurantInfo.googleListingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-outline text-sm"
+              >
+                View Google listing
+              </a>
+            </div>
+          </section>
+        </div>
+
+        {/* FAQ */}
+        <section className="mt-14" aria-labelledby="faq-heading">
+          <div className="mx-auto max-w-3xl">
+            <div className="text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Before you ask</p>
+              <h2 id="faq-heading" className="mt-2 font-display text-3xl font-semibold text-gray-900">
+                Frequently asked questions
+              </h2>
+            </div>
+            <div className="mt-7 space-y-3">
+              {faqs.map((faq) => (
+                <details key={faq.q} className="group rounded-2xl border border-surface-200 bg-white shadow-soft">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 font-semibold text-gray-900">
+                    {faq.q}
+                    <svg className="h-5 w-5 flex-shrink-0 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <p className="border-t border-surface-200 px-5 py-4 text-sm leading-relaxed text-gray-600">
+                    {faq.a}
+                  </p>
+                </details>
+              ))}
+            </div>
+            <p className="mt-7 text-center text-sm text-gray-500">
+              Still curious? <Link to="/menu" className="font-semibold text-brand-700 hover:underline">Browse the menu</Link> or{' '}
+              <a href={`tel:${restaurantInfo.phoneRaw}`} className="font-semibold text-brand-700 hover:underline">give us a call</a>.
+            </p>
           </div>
         </section>
       </main>

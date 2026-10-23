@@ -1,412 +1,771 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
-import { menuCategories, getMenuCategories } from '../data/menu';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useSiteData } from '../context/SiteDataContext';
 import { useCart } from '../components/Header';
+import FoodImage from '../components/FoodImage';
+import OpenNowBadge from '../components/OpenNowBadge';
+import { menuStyleVars } from '../data/menuStyles';
+import { formatINR, getPriceOptions, parsePrice } from '../utils/price';
+import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 const dietOptions = [
-  { id: 'all', label: 'All', icon: '🍽️' },
-  { id: 'vegetarian', label: 'Vegetarian', icon: '🌱' },
-  { id: 'non-veg', label: 'Non-Veg', icon: '🍗' },
+  { id: 'all', label: 'Everything', icon: '🍽️' },
+  { id: 'vegetarian', label: 'Veg', icon: '🌱' },
+  { id: 'non-veg', label: 'Non-veg', icon: '🍗' },
   { id: 'popular', label: 'Popular', icon: '⭐' },
   { id: 'spicy', label: 'Spicy', icon: '🌶️' },
 ];
 
 const sortOptions = [
   { id: 'default', label: 'Recommended' },
-  { id: 'price-low', label: 'Price: Low to High' },
-  { id: 'price-high', label: 'Price: High to Low' },
-  { id: 'name', label: 'Name A-Z' },
+  { id: 'price-low', label: 'Price: low to high' },
+  { id: 'price-high', label: 'Price: high to low' },
+  { id: 'name', label: 'Name A–Z' },
 ];
+
+function VegMark({ vegetarian }) {
+  return (
+    <span
+      className={`flex h-7 w-7 items-center justify-center rounded-lg border-2 bg-white ${
+        vegetarian ? 'border-emerald-600' : 'border-rose-600'
+      }`}
+      title={vegetarian ? 'Vegetarian' : 'Non-vegetarian'}
+      aria-label={vegetarian ? 'Vegetarian' : 'Non-vegetarian'}
+    >
+      <span
+        className={`h-3 w-3 rounded-full ${vegetarian ? 'bg-emerald-600' : 'bg-rose-600'}`}
+      />
+    </span>
+  );
+}
 
 export default function Menu() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeCategory, setActiveCategory] = useState(() => {
-    const cat = searchParams.get('category');
-    return cat || menuCategories[0].id;
-  });
+  const { categories, popularItems, restaurantInfo, menuStyle } = useSiteData();
+  const { addToCart } = useCart();
+
+  const [activeCategory, setActiveCategory] = useState(() => searchParams.get('category') || 'all');
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
   const [activeDiet, setActiveDiet] = useState('all');
   const [sortBy, setSortBy] = useState('default');
-  const [menuRef, menuVisible] = useIntersectionObserver();
-  const { addToCart } = useCart();
-  const [showAddedToast, setShowAddedToast] = useState(null);
+  const [quickView, setQuickView] = useState(null);
+  const [selectedOption, setSelectedOption] = useState(0);
+  const [toast, setToast] = useState('');
+
+  const allItems = useMemo(
+    () =>
+      categories.flatMap((category) =>
+        category.items.map((item) => ({
+          ...item,
+          categoryId: category.id,
+          categoryName: category.name,
+          categoryImage: category.image,
+          categoryIcon: category.icon,
+        })),
+      ),
+    [categories],
+  );
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const isFiltered = Boolean(normalizedQuery) || activeDiet !== 'all' || sortBy !== 'default';
+
+  const visibleItems = useMemo(() => {
+    let list =
+      activeCategory === 'all'
+        ? [...allItems]
+        : allItems.filter((item) => item.categoryId === activeCategory);
+
+    if (normalizedQuery) {
+      list = list.filter((item) =>
+        [item.name, item.description, item.categoryName]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalizedQuery),
+      );
+    }
+
+    if (activeDiet === 'vegetarian') list = list.filter((item) => item.vegetarian);
+    if (activeDiet === 'non-veg') list = list.filter((item) => !item.vegetarian);
+    if (activeDiet === 'popular') list = list.filter((item) => item.popular);
+    if (activeDiet === 'spicy') {
+      list = list.filter(
+        (item) =>
+          item.spicy ||
+          /chilli|chili|spicy|kadai/i.test(`${item.name} ${item.description}`),
+      );
+    }
+
+    if (sortBy === 'price-low') list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
+    if (sortBy === 'price-high') list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+    if (sortBy === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+
+    return list;
+  }, [activeCategory, activeDiet, allItems, normalizedQuery, sortBy]);
+
+  const sections = useMemo(() => {
+    if (isFiltered) {
+      return [
+        {
+          id: 'filtered',
+          name: normalizedQuery ? `Results for “${searchQuery.trim()}”` : 'Your selection',
+          description: `${visibleItems.length} dish${visibleItems.length === 1 ? '' : 'es'} found`,
+          icon: '🔎',
+          items: visibleItems,
+        },
+      ];
+    }
+
+    const selected =
+      activeCategory === 'all'
+        ? categories
+        : categories.filter((category) => category.id === activeCategory);
+
+    return selected.map((category) => ({ ...category, items: category.items }));
+  }, [activeCategory, categories, isFiltered, normalizedQuery, searchQuery, visibleItems]);
+
+  const totalDishes = allItems.length;
+  const cheapest = allItems.length ? Math.min(...allItems.map((item) => parsePrice(item.price)).filter(Boolean)) : 0;
+
+  const heroDishes = useMemo(() => {
+    const seen = new Set();
+    const picks = [];
+    for (const item of [...popularItems, ...allItems]) {
+      if (!item.image || seen.has(item.image)) continue;
+      seen.add(item.image);
+      picks.push(item);
+      if (picks.length === 3) break;
+    }
+    return picks;
+  }, [allItems, popularItems]);
 
   useEffect(() => {
     const category = searchParams.get('category');
-    const search = searchParams.get('search');
-    if (category) setActiveCategory(category);
-    if (search) setSearchQuery(search);
+    const search = searchParams.get('search') || '';
+    setActiveCategory(category || 'all');
+    setSearchQuery(search);
   }, [searchParams]);
 
-  const currentCategory = menuCategories.find(cat => cat.id === activeCategory);
+  useEffect(() => {
+    if (!quickView) return undefined;
+    setSelectedOption(0);
 
-  // Get all items from current category
-  let items = useMemo(() => {
-    if (!currentCategory) return [];
-    let filtered = [...currentCategory.items];
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setQuickView(null);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [quickView]);
 
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(query) ||
-        item.description.toLowerCase().includes(query)
-      );
-    }
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(''), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
-    // Apply diet filter
-    if (activeDiet === 'vegetarian') {
-      filtered = filtered.filter(item => item.vegetarian);
-    } else if (activeDiet === 'non-veg') {
-      filtered = filtered.filter(item => !item.vegetarian);
-    } else if (activeDiet === 'popular') {
-      filtered = filtered.filter(item => item.popular);
-    } else if (activeDiet === 'spicy') {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes('chilli') ||
-        item.name.toLowerCase().includes('spicy') ||
-        item.description.toLowerCase().includes('spicy')
-      );
-    }
+  useEffect(() => {
+    document.title = `${restaurantInfo.menuTitle} Menu | ${restaurantInfo.name}`;
+    return () => {
+      document.title = `${restaurantInfo.name} - Belonia's Favorite Restaurant | South Tripura`;
+    };
+  }, [restaurantInfo.menuTitle, restaurantInfo.name]);
 
-    // Apply sorting
-    switch (sortBy) {
-      case 'price-low':
-        filtered.sort((a, b) => {
-          const priceA = parseFloat(a.price.replace(/[^0-9.]/g, ''));
-          const priceB = parseFloat(b.price.replace(/[^0-9.]/g, ''));
-          return priceA - priceB;
-        });
-        break;
-      case 'price-high':
-        filtered.sort((a, b) => {
-          const priceA = parseFloat(a.price.replace(/[^0-9.]/g, ''));
-          const priceB = parseFloat(b.price.replace(/[^0-9.]/g, ''));
-          return priceB - priceA;
-        });
-        break;
-      case 'name':
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        // Keep original order (popular first)
-        filtered.sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
-    }
-
-    return filtered;
-  }, [currentCategory, searchQuery, activeDiet, sortBy]);
-
-  const handleAddToCart = (item) => {
-    addToCart(item);
-    setShowAddedToast(item.name);
-    setTimeout(() => setShowAddedToast(null), 2000);
+  const updateParams = (category, search) => {
+    const params = {};
+    if (category && category !== 'all') params.category = category;
+    if (search?.trim()) params.search = search.trim();
+    setSearchParams(params, { replace: true });
   };
 
   const handleCategoryChange = (categoryId) => {
     setActiveCategory(categoryId);
-    setSearchParams({ category: categoryId }, { replace: true });
+    updateParams(categoryId, searchQuery);
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearchParams({ search: searchQuery.trim(), category: activeCategory }, { replace: true });
+  const handleSearch = (event) => {
+    event.preventDefault();
+    updateParams(activeCategory, searchQuery);
   };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setActiveDiet('all');
+    setSortBy('default');
+    setActiveCategory('all');
+    setSearchParams({}, { replace: true });
+    window.setTimeout(() => {
+      document.getElementById('menu-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  const addItemToCart = (item, option) => {
+    const category = categories.find((entry) => entry.id === item.categoryId);
+    const options = getPriceOptions(item);
+    const chosen = option || options[0];
+
+    addToCart({
+      ...item,
+      image: item.image || category?.image || '',
+      price: chosen.display,
+      cartKey: `${item.id}-${chosen.label}`,
+      portion: options.length > 1 ? chosen.label : '',
+    });
+    setToast(`${item.name}${options.length > 1 ? ` · ${chosen.label}` : ''} added`);
+  };
+
+  const handleAdd = (item) => {
+    const options = getPriceOptions(item);
+    if (options.length > 1) {
+      setQuickView(item);
+      return;
+    }
+    addItemToCart(item, options[0]);
+  };
+
+  const quickViewOptions = quickView ? getPriceOptions(quickView) : [];
+  const quickViewChosen = quickViewOptions[selectedOption] || quickViewOptions[0];
+  const quickViewCategory = quickView
+    ? categories.find((category) => category.id === quickView.categoryId)
+    : null;
+
+  const quickViewWhatsApp = quickView && quickViewChosen
+    ? buildWhatsAppUrl(
+        restaurantInfo.whatsapp,
+        `Hello ${restaurantInfo.name}! I'd like to order ${quickView.name}${
+          quickViewOptions.length > 1 ? ` (${quickViewChosen.label})` : ''
+        } — ${quickViewChosen.display}. Is it available?`,
+      )
+    : '';
+
+  const themeVars = useMemo(() => menuStyleVars(menuStyle), [menuStyle]);
 
   return (
-    <div className="min-h-screen bg-surface-50">
-      {/* Page Header */}
-      <header className="bg-white border-b border-surface-200 pt-20 pb-12">
-        <div className="section-container">
-          <div className="max-w-3xl mx-auto text-center">
-            <h1 className="font-display font-semibold text-3xl md:text-4xl lg:text-5xl text-gray-900 mb-4">
-              Our Menu
-            </h1>
-            <p className="text-lg text-gray-600">
-              Discover our wide selection of authentic Bengali & Indian dishes, Indo-Chinese favorites, 
-              and delicious street food classics.
-            </p>
+    <div
+      className="menu-page min-h-screen"
+      data-layout={menuStyle.layout}
+      data-radius={menuStyle.radius}
+      data-heading={menuStyle.headingFont}
+      style={{ ...themeVars, backgroundColor: menuStyle.bg }}
+    >
+      {/* Hero */}
+      <header
+        className="menu-hero relative overflow-hidden border-b border-surface-200 pb-12 pt-24 md:pb-16 md:pt-32"
+        style={{
+          background: `linear-gradient(135deg, ${menuStyle.heroFrom}, ${menuStyle.heroVia}, ${menuStyle.heroTo})`,
+        }}
+      >
+        <div className="menu-hero-ring pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border-[32px] border-brand-100/70" aria-hidden="true" />
+        <div className="menu-hero-ring menu-hero-ring-alt pointer-events-none absolute -bottom-32 -left-20 h-64 w-64 rounded-full border-[28px] border-accent-100/60" aria-hidden="true" />
+
+        <div className="section-container relative">
+          <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <OpenNowBadge />
+                <span className="menu-pill inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800">
+                  <span className="menu-star text-brand-500">★</span>
+                  {restaurantInfo.rating} on Google
+                </span>
+              </div>
+
+              <p className="menu-accent-text mt-7 text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+                {restaurantInfo.menuTitle} · {restaurantInfo.menuSubtitle}
+              </p>
+              <h1 className="menu-heading mt-3 max-w-2xl font-display text-4xl font-semibold leading-[1.08] text-gray-900 sm:text-5xl lg:text-6xl">
+                Good food.
+                <span className="menu-accent-text block text-brand-700">Great mood.</span>
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-gray-600 md:text-lg">
+                The Bawarchi Puja Special menu — slow-cooked biryani, flaky rolls, wok-tossed
+                noodles and gravies made for warm paratha. Order for pickup or delivery.
+              </p>
+
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="#menu-list"
+                  className="btn-primary"
+                >
+                  Browse {totalDishes} dishes
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </a>
+                <Link to="/order" className="btn-secondary">
+                  Start an order
+                </Link>
+              </div>
+
+              <dl className="menu-divider mt-8 grid max-w-lg grid-cols-3 gap-3 border-t border-brand-200/70 pt-5">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Categories</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{categories.length}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Dishes</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{totalDishes}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">From</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{formatINR(cheapest)}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
+              <div className="grid grid-cols-2 grid-rows-[1.15fr_0.85fr] gap-3 sm:gap-4">
+                {heroDishes[0] && (
+                  <div className="menu-photo-frame relative row-span-2 overflow-hidden rounded-[2rem] border-4 border-white bg-white shadow-strong">
+                    <FoodImage
+                      src={heroDishes[0].image}
+                      alt={heroDishes[0].name}
+                      className="h-full min-h-[22rem] w-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 pt-16 text-white">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-200">House favourite</p>
+                      <p className="mt-1 font-display text-xl font-semibold">{heroDishes[0].name}</p>
+                      <p className="text-sm text-white/85">{heroDishes[0].price}</p>
+                    </div>
+                  </div>
+                )}
+                {heroDishes.slice(1, 3).map((dish) => (
+                  <div key={dish.id} className="menu-photo-frame relative overflow-hidden rounded-[1.5rem] border-4 border-white bg-white shadow-medium">
+                    <FoodImage
+                      src={dish.image}
+                      alt={dish.name}
+                      className="h-full min-h-[9rem] w-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent p-3 pt-8 text-white">
+                      <p className="text-xs font-semibold leading-tight">{dish.name}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="menu-pill absolute -bottom-4 -left-3 rounded-2xl border border-brand-200 bg-white px-4 py-3 shadow-medium sm:-left-5">
+                <p className="menu-accent-text text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-700">Pickup point</p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">College Square, Belonia</p>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Search Bar */}
-      <div className="bg-white border-b border-surface-200 sticky top-20 z-30">
-        <div className="section-container py-4">
-          <form onSubmit={handleSearch} className="max-w-3xl mx-auto">
-            <div className="relative">
-              <label htmlFor="menu-search" className="sr-only">Search menu</label>
-              <input
-                id="menu-search"
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search biryani, rolls, fish curry, momos..."
-                className="w-full input-field bg-surface-50 border-surface-200 pl-12 pr-4 text-gray-900 placeholder-gray-500"
-                aria-label="Search menu items"
-              />
-              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchQuery(''); setSearchParams({ category: activeCategory }, { replace: true }); }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label="Clear search"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-      </div>
-
-      {/* Category Navigation */}
-      <nav className="sticky top-28 z-40 bg-white border-b border-surface-200" aria-label="Menu categories">
-        <div className="section-container">
-          <div className="flex flex-wrap gap-2 md:gap-3 py-4 overflow-x-auto pb-4 -mx-4 px-4" role="tablist">
-            {menuCategories.map((category) => (
-              <button
-                key={category.id}
-                role="tab"
-                aria-selected={activeCategory === category.id}
-                aria-controls={`panel-${category.id}`}
-                id={`tab-${category.id}`}
-                onClick={() => handleCategoryChange(category.id)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  activeCategory === category.id
-                    ? 'bg-brand-500 text-white shadow-lg'
-                    : 'bg-surface-100 text-gray-700 hover:bg-brand-100 hover:text-brand-600'
-                }`}
-              >
-                {category.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
-
-      {/* Filters & Sort */}
-      <div className="bg-white border-b border-surface-200 sticky top-36 z-30">
+      {/* Sticky controls */}
+      <div className="menu-controls sticky top-16 z-30 border-b border-surface-200 bg-[#fffdf8] md:top-20">
         <div className="section-container py-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            {/* Diet Filters */}
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Dietary filters">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <form onSubmit={handleSearch} className="relative flex-1">
+                <label htmlFor="menu-search" className="sr-only">Search the menu</label>
+                <input
+                  id="menu-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search biryani, rolls, momos, paneer…"
+                  className="input-field py-2.5 pl-10 pr-20"
+                />
+                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      updateParams(activeCategory, '');
+                    }}
+                    className="absolute right-16 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-gray-400 hover:bg-surface-100 hover:text-gray-700"
+                    aria-label="Clear search"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+                <button type="submit" className="menu-search-btn absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+                  Search
+                </button>
+              </form>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="sort-select" className="flex-shrink-0 text-xs font-medium text-gray-500">Sort</label>
+                <select
+                  id="sort-select"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value)}
+                  className="input-field min-w-44 py-2.5 text-sm"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('all')}
+                data-active={activeCategory === 'all'}
+                className="menu-chip whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors"
+              >
+                All dishes
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => handleCategoryChange(category.id)}
+                  data-active={activeCategory === category.id}
+                  className="menu-chip whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  <span className="mr-1.5" aria-hidden="true">{category.icon}</span>
+                  {category.name}
+                </button>
+              ))}
+
+              <span className="mx-1 h-6 w-px flex-shrink-0 bg-surface-300" aria-hidden="true" />
+
               {dietOptions.map((diet) => (
                 <button
                   key={diet.id}
+                  type="button"
                   onClick={() => setActiveDiet(diet.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                    activeDiet === diet.id
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-surface-100 text-gray-700 hover:bg-brand-100 hover:text-brand-600'
-                  }`}
                   aria-pressed={activeDiet === diet.id}
+                  data-active={activeDiet === diet.id}
+                  className="menu-chip menu-chip-outline whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
                 >
-                  <span>{diet.icon}</span>
-                  <span>{diet.label}</span>
+                  <span className="mr-1" aria-hidden="true">{diet.icon}</span>
+                  {diet.label}
                 </button>
               ))}
-            </div>
-
-            {/* Sort */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="sort-select" className="text-sm text-gray-600">Sort by:</label>
-              <select
-                id="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="input-field bg-surface-50 border-surface-200 text-gray-900 py-1.5 px-3 text-sm appearance-none"
-                aria-label="Sort menu items"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Menu Content */}
-      <main ref={menuRef} className="section-container py-12" role="tabpanel" id={`panel-${activeCategory}`} aria-labelledby={`tab-${activeCategory}`}>
-        {currentCategory && (
-          <div className={`max-w-4xl mx-auto ${menuVisible ? 'animate-fade-in' : 'opacity-0'}`}>
-            {/* Category Header */}
-            <div className="mb-8 text-center">
-              <h2 className="font-display font-semibold text-2xl md:text-3xl text-gray-900 mb-2">
-                {currentCategory.name}
-              </h2>
-              <p className="text-gray-600">{currentCategory.description}</p>
-              {searchQuery && (
-                <p className="text-sm text-brand-600 mt-2">
-                  Showing {items.length} result{items.length !== 1 ? 's' : ''} for "{searchQuery}"
-                </p>
-              )}
-              {activeDiet !== 'all' && !searchQuery && (
-                <p className="text-sm text-brand-600 mt-2">
-                  Filtered by: {dietOptions.find(d => d.id === activeDiet)?.label}
-                </p>
-              )}
-            </div>
+      {/* Menu */}
+      <main id="menu-list" className="section-container scroll-mt-44 py-10 md:py-14">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="menu-accent-text text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">
+              {isFiltered ? 'Filtered menu' : 'The full menu'}
+            </p>
+            <h2 className="menu-heading mt-1 font-display text-3xl font-semibold text-gray-900">
+              {isFiltered
+                ? sections[0]?.name
+                : activeCategory === 'all'
+                  ? 'Everything we cook'
+                  : categories.find((category) => category.id === activeCategory)?.name}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {visibleItems.length} dish{visibleItems.length === 1 ? '' : 'es'} · Prices in ₹ · Portion prices noted
+            </p>
+          </div>
+          {isFiltered && (
+            <button type="button" onClick={clearFilters} className="btn-outline self-start py-2 text-sm sm:self-auto">
+              Clear filters
+            </button>
+          )}
+        </div>
 
-            {/* Menu Items */}
-            {items.length > 0 ? (
-              <div className="space-y-4" role="list">
-                {items.map((item, index) => (
-                  <article
-                    key={item.id}
-                    role="listitem"
-                    className={`card p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 group ${menuVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'} hover:shadow-medium`}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    {/* Item Image Placeholder */}
-                    <div className="w-24 h-24 md:w-28 md:h-28 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      <span className="text-3xl md:text-4xl">{
-                        item.name.toLowerCase().includes('biryani') ? '🍚' :
-                        item.name.toLowerCase().includes('roll') ? '🌯' :
-                        item.name.toLowerCase().includes('momo') ? '🥟' :
-                        item.name.toLowerCase().includes('chow') || item.name.toLowerCase().includes('noodle') ? '🍜' :
-                        item.name.toLowerCase().includes('rice') ? '🍚' :
-                        item.name.toLowerCase().includes('soup') ? '🍲' :
-                        item.name.toLowerCase().includes('bread') || item.name.toLowerCase().includes('roti') || item.name.toLowerCase().includes('paratha') ? '🫓' :
-                        item.name.toLowerCase().includes('salad') ? '🥗' :
-                        item.vegetarian ? '🥬' : '🍗'
-                      }</span>
+        {visibleItems.length === 0 ? (
+          <div className="menu-empty rounded-3xl border border-dashed border-surface-300 bg-white py-16 text-center">
+            <p className="text-5xl">🍽️</p>
+            <h3 className="menu-heading mt-4 font-display text-2xl font-semibold text-gray-900">No dishes match that</h3>
+            <p className="mt-2 text-gray-500">Try a different spelling, category or filter.</p>
+            <button type="button" onClick={clearFilters} className="btn-primary mt-6">Show the full menu</button>
+          </div>
+        ) : (
+          <div className="space-y-14">
+            {sections.map((section) => (
+              <section key={section.id} aria-labelledby={`section-${section.id}`}>
+                <div className="menu-divider mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-surface-200 pb-3">
+                  <div className="flex items-start gap-3">
+                    <span className="menu-section-icon flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-100 text-xl" aria-hidden="true">
+                      {section.icon || '🍽️'}
+                    </span>
+                    <div>
+                      <h3 id={`section-${section.id}`} className="menu-heading font-display text-2xl font-semibold text-gray-900">
+                        {section.name}
+                      </h3>
+                      {section.description && (
+                        <p className="mt-0.5 max-w-2xl text-sm text-gray-500">{section.description}</p>
+                      )}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-gray-400">{section.items.length} dishes</span>
+                    {!isFiltered && section.id !== 'filtered' && (
+                      <Link
+                        to={`/menu-print/${section.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="menu-accent-text text-xs font-semibold text-brand-700 hover:underline"
+                      >
+                        Print this section
+                      </Link>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Item Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-2">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <h3 className="font-display font-semibold text-lg md:text-xl text-gray-900 truncate">
+                <div className="menu-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {section.items.map((item) => {
+                    const multiPrice = getPriceOptions(item).length > 1;
+                    return (
+                      <article
+                        key={`${item.categoryId}-${item.id}`}
+                        className="menu-card group flex flex-col overflow-hidden rounded-3xl border border-surface-200 bg-white shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-medium"
+                      >
+                        <div className="menu-card-media relative aspect-[4/3] overflow-hidden bg-brand-50">
+                          <FoodImage
+                            src={item.image || item.categoryImage}
+                            alt={item.name}
+                            fallback={item.categoryIcon || (item.vegetarian ? '🥬' : '🍗')}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {item.popular && (
+                                <span className="menu-badge rounded-full bg-brand-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-950">
+                                  ★ Popular
+                                </span>
+                              )}
+                              {item.chefSpecial && (
+                                <span className="rounded-full bg-stone-900/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                                  Chef’s pick
+                                </span>
+                              )}
+                              {item.spicy && (
+                                <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-orange-800">
+                                  🌶 Spicy
+                                </span>
+                              )}
+                            </div>
+                            <VegMark vegetarian={item.vegetarian} />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setQuickView(item)}
+                            className="menu-quick-btn absolute bottom-3 right-3 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-800 opacity-0 shadow-sm transition-opacity duration-200 hover:bg-white group-hover:opacity-100 focus:opacity-100"
+                          >
+                            Quick view
+                          </button>
+                        </div>
+
+                        <div className="menu-card-body flex flex-1 flex-col p-4 md:p-5">
+                          {isFiltered && (
+                            <p className="menu-accent-text mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">
+                              {item.categoryName}
+                            </p>
+                          )}
+                          <h4 className="menu-heading font-display text-lg font-semibold leading-snug text-gray-900">
                             {item.name}
-                          </h3>
-                          <div className="flex items-center gap-1.5">
-                            {item.popular && <span className="badge badge-popular">⭐ Popular</span>}
-                            {item.vegetarian ? <span className="badge badge-veg">🌱 Veg</span> : <span className="badge badge-nonveg">🍗 Non-Veg</span>}
-                            {item.name.toLowerCase().includes('chilli') && <span className="badge badge-spicy">🌶️ Spicy</span>}
+                          </h4>
+                          <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-gray-500">
+                            {item.description}
+                          </p>
+                          <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                            <div>
+                              <p className="menu-price text-lg font-bold text-brand-800">{item.price}</p>
+                              {multiPrice && (
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                                  Choose portion
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdd(item)}
+                              className="menu-add inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2.5 text-xs font-bold text-white transition-colors hover:bg-brand-700"
+                              aria-label={`Add ${item.name} to basket`}
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              {multiPrice ? 'Choose' : 'Add'}
+                            </button>
                           </div>
                         </div>
-                        <span className="font-display font-bold text-xl text-brand-600 whitespace-nowrap flex-shrink-0">
-                          {item.price}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-sm md:text-base leading-relaxed">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    {/* Add to Cart Button */}
-                    <button
-                      onClick={() => handleAddToCart(item)}
-                      className="btn-primary w-full md:w-auto md:flex-shrink-0 group-hover:bg-brand-600"
-                      aria-label={`Add ${item.name} to cart - ${item.price}`}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add to Cart
-                    </button>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16">
-                <svg className="w-16 h-16 mx-auto text-surface-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-lg font-medium text-gray-900 mb-1">No items found</h3>
-                <p className="text-gray-500 mb-4">Try adjusting your search or filters</p>
-                <button
-                  onClick={() => { setSearchQuery(''); setActiveDiet('all'); }}
-                  className="btn-secondary"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Dietary Info */}
-      <section className="py-12 bg-white border-t border-surface-200">
+      {/* How ordering works */}
+      <section className="menu-how border-y border-surface-200 bg-white py-12">
         <div className="section-container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-100 rounded-xl">
-              <svg className="w-6 h-6 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h3 className="font-medium text-green-800">Vegetarian Friendly</h3>
-                <p className="text-green-700 text-sm">Wide variety of veg dishes available</p>
+          <div className="grid gap-6 md:grid-cols-3">
+            {[
+              { step: '01', title: 'Pick your dishes', copy: 'Browse the full menu and add what you love to your basket.' },
+              { step: '02', title: 'Login with your number', copy: 'Add your name, phone and delivery address. Our kitchen gets a WhatsApp alert with the order.' },
+              { step: '03', title: 'Pickup or delivery', copy: 'We confirm timing on WhatsApp. Pay at the counter or on delivery.' },
+            ].map((item) => (
+              <div key={item.step} className="flex gap-4">
+                <span className="menu-step font-display text-3xl font-semibold text-brand-300">{item.step}</span>
+                <div>
+                  <h3 className="menu-heading font-semibold text-gray-900">{item.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-500">{item.copy}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-              <svg className="w-6 h-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h3 className="font-medium text-amber-800">Quick Service</h3>
-                <p className="text-amber-700 text-sm">Freshly prepared, served hot</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-              <svg className="w-6 h-6 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <div>
-                <h3 className="font-medium text-blue-800">Takeaway Available</h3>
-                <p className="text-blue-700 text-sm">Packed fresh for your convenience</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="py-16 bg-gradient-to-r from-brand-50 to-accent-50">
-        <div className="section-container text-center">
-          <h2 className="font-display font-semibold text-3xl md:text-4xl text-gray-900 mb-4">
-            Ready to Order?
-          </h2>
-          <p className="text-gray-600 text-lg mb-8 max-w-2xl mx-auto">
-            Visit us for dine-in or order for takeaway. We're open daily from 8 AM to 10 PM.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/contact" className="btn-primary bg-gray-900 text-white hover:bg-gray-800 w-full sm:w-auto">
-              Find Us & Order
-            </Link>
-            <a href="tel:+919366986853" className="inline-flex items-center gap-2 px-8 py-3 text-lg font-medium text-brand-600 bg-white border-2 border-brand-300 rounded-xl hover:bg-brand-50 transition-colors">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              Call +91 93669 86853
-            </a>
-            <a href="/menu-print" target="_blank" className="btn-secondary border-brand-300 text-brand-600 hover:bg-brand-50 w-full sm:w-auto">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print Menu
-            </a>
+      <section className="menu-cta bg-gradient-to-br from-brand-50 via-[#fffdf8] to-accent-50 py-14">
+        <div className="section-container">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="menu-accent-text text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Hungry yet?</p>
+            <h2 className="menu-heading mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+              Let’s get dinner sorted.
+            </h2>
+            <p className="mt-3 text-gray-600">
+              Call the kitchen, message us on WhatsApp, or print a menu for the fridge.
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <a
+                href={buildWhatsAppUrl(
+                  restaurantInfo.whatsapp,
+                  `Hello ${restaurantInfo.name}! I'd like to place a takeaway order.`,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary"
+              >
+                Order on WhatsApp
+              </a>
+              <a href={`tel:${restaurantInfo.phoneRaw}`} className="btn-secondary">
+                Call {restaurantInfo.phone}
+              </a>
+              <Link to="/menu-print" className="menu-print-btn btn-outline bg-white text-brand-800">
+                Print menu
+              </Link>
+            </div>
+            <p className="mt-5 text-sm text-gray-500">{restaurantInfo.hours} · Dine-in, takeaway & delivery</p>
           </div>
         </div>
       </section>
 
-      {/* Added to Cart Toast */}
-      {showAddedToast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-slide-up bg-gray-900 text-white px-6 py-4 rounded-xl shadow-strong flex items-center gap-3">
-          <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span className="font-medium">{showAddedToast} added to cart!</span>
+      {/* Quick view / portion picker */}
+      {quickView && quickViewChosen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-stone-950/55 p-0 sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quick-view-title"
+          onClick={() => setQuickView(null)}
+        >
+          <div
+            className="menu-quick-card max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-strong sm:rounded-3xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="menu-quick-media relative aspect-[16/10] overflow-hidden rounded-t-3xl bg-brand-50">
+              <FoodImage
+                src={quickView.image || quickViewCategory?.image}
+                alt={quickView.name}
+                fallback={quickViewCategory?.icon || '🍽️'}
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => setQuickView(null)}
+                className="menu-quick-close absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-800 shadow-sm hover:bg-surface-100"
+                aria-label="Close quick view"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <div className="absolute bottom-3 left-3 flex gap-1.5">
+                {quickView.popular && <span className="menu-badge rounded-full bg-brand-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-950">★ Popular</span>}
+                {quickView.vegetarian
+                  ? <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Veg</span>
+                  : <span className="rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Non-veg</span>}
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-6">
+              <p className="menu-accent-text text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-700">
+                {quickView.categoryName}
+              </p>
+              <h2 id="quick-view-title" className="menu-heading mt-1 font-display text-2xl font-semibold text-gray-900">
+                {quickView.name}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600">{quickView.description}</p>
+
+              {quickViewOptions.length > 1 && (
+                <fieldset className="mt-5">
+                  <legend className="text-xs font-semibold uppercase tracking-wider text-gray-500">Choose a portion</legend>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {quickViewOptions.map((option, index) => (
+                      <label
+                        key={option.label}
+                        data-active={selectedOption === index}
+                        className="menu-portion cursor-pointer rounded-xl border-2 p-3 text-center transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="portion"
+                          value={option.label}
+                          checked={selectedOption === index}
+                          onChange={() => setSelectedOption(index)}
+                          className="sr-only"
+                        />
+                        <span className="block text-sm font-semibold text-gray-900">{option.label}</span>
+                        <span className="mt-0.5 block text-lg font-bold text-brand-800 menu-price">{option.display}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              <div className="menu-summary mt-5 flex items-center justify-between gap-3 rounded-xl bg-surface-50 px-4 py-3">
+                <span className="text-sm font-medium text-gray-600">Your price</span>
+                <span className="menu-price font-display text-2xl font-semibold text-brand-800">{quickViewChosen.display}</span>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => {
+                    addItemToCart(quickView, quickViewChosen);
+                    setQuickView(null);
+                  }}
+                  className="btn-primary flex-1"
+                >
+                  Add to basket
+                </button>
+                <a
+                  href={quickViewWhatsApp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                >
+                  Ask on WhatsApp
+                </a>
+              </div>
+              <p className="mt-3 text-center text-xs text-gray-400">
+                Portion prices are listed on the menu. Please confirm availability with the kitchen.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[70] flex max-w-[calc(100vw-2.5rem)] items-center gap-2 rounded-xl bg-stone-900 px-4 py-3 text-sm font-medium text-white shadow-strong">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-xs">✓</span>
+          <span className="truncate">{toast}</span>
         </div>
       )}
     </div>

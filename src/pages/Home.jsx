@@ -1,386 +1,625 @@
-import { Link } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
-import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
-import { getAverageRating, getTotalReviews } from '../data/reviews';
-import { getPopularItems } from '../data/menu';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSiteData } from '../context/SiteDataContext';
 import { useCart } from '../components/Header';
+import FoodImage from '../components/FoodImage';
+import OpenNowBadge from '../components/OpenNowBadge';
+import { reviews } from '../data/reviews';
+import { specialOffers } from '../data/site';
+import { buildWhatsAppUrl } from '../utils/whatsapp';
+import { getPriceOptions } from '../utils/price';
+
+const craveCategories = [
+  'biriyani',
+  'roll',
+  'momos',
+  'chowmin',
+  'non-veg-gravy',
+  'veg-gravy',
+];
+
+function Stars({ rating = 5, className = '' }) {
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${className}`} aria-label={`${rating} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`h-4 w-4 ${star <= Math.round(rating) ? 'text-brand-500' : 'text-surface-300'} fill-current`}
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
 
 export default function Home() {
-  const [heroRef, heroVisible] = useIntersectionObserver({ threshold: 0.1 });
-  const [statsRef, statsVisible] = useIntersectionObserver({ threshold: 0.1 });
-  const [featuresRef, featuresVisible] = useIntersectionObserver({ threshold: 0.1 });
-  const [ctaRef, ctaVisible] = useIntersectionObserver({ threshold: 0.1 });
-  const [testimonialIndex, setTestimonialIndex] = useState(0);
-  const [testimonialsRef, testimonialsVisible] = useIntersectionObserver({ threshold: 0.1 });
-
-  const avgRating = getAverageRating();
-  const totalReviews = getTotalReviews();
-  const popularItems = getPopularItems().slice(0, 4);
+  const navigate = useNavigate();
+  const { restaurantInfo, categories, popularItems, activeHero, galleryImages, allItems } = useSiteData();
   const { addToCart } = useCart();
+  const [reviewIndex, setReviewIndex] = useState(0);
 
-  const features = [
-    {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
-      title: 'Authentic Bengali Flavors',
-      description: 'Traditional recipes from Bengal, prepared with fresh ingredients & mustard, poppy seed, coconut flavors.',
-    },
-    {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      title: 'Prime Location',
-      description: 'College Square, Belonia, South Tripura - easy to find, hard to forget.',
-    },
-    {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      ),
-      title: 'Customer Favorite',
-      description: 'Rated 4.3/5 on Google. Loved for biryani, rolls, fish curry & friendly service since 2023.',
-    },
-    {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      title: 'All-Day Dining',
-      description: 'Open daily 8 AM - 10 PM. Breakfast, lunch, dinner & late-night takeaway available.',
-    },
-  ];
+  const totalDishes = allItems.length;
+  const featuredCategories = useMemo(
+    () =>
+      craveCategories
+        .map((id) => categories.find((category) => category.id === id))
+        .filter(Boolean),
+    [categories],
+  );
 
-  const testimonials = [
-    {
-      author: 'Chiranjit Majumder',
-      role: 'Local Foodie',
-      rating: 5,
-      text: 'Best biryani in town! The Chicken Dum Biryani is perfectly cooked with aromatic spices. The rolls are also amazing - crispy paratha with generous fillings.',
-      avatar: 'CM',
-    },
-    {
-      author: 'Priya Das',
-      role: 'Regular Customer',
-      rating: 5,
-      text: 'Great place for vegetarian options too! The Paneer Butter Masala and Veg Fried Rice were delicious. Staff is very courteous and the place is clean.',
-      avatar: 'PD',
-    },
-    {
-      author: 'Amit Singh',
-      role: 'Food Blogger',
-      rating: 4,
-      text: 'Best chilli chicken in Belonia! The Indo-Chinese section is amazing. Tried the schezwan fried rice and hakka noodles - both were excellent.',
-      avatar: 'AS',
-    },
-  ];
+  const review = reviews[reviewIndex % reviews.length];
+  const reviewRating =
+    (review.rating.food + review.rating.service + review.rating.atmosphere) / 3;
+  const heroDish = useMemo(
+    () =>
+      allItems.find((item) => item.name === activeHero?.caption) ||
+      allItems.find((item) => item.categoryId === 'biriyani') ||
+      popularItems[0],
+    [activeHero?.caption, allItems, popularItems],
+  );
 
-  const goToTestimonial = useCallback((index) => {
-    setTestimonialIndex(index);
-  }, []);
-
-  const nextTestimonial = useCallback(() => {
-    setTestimonialIndex((prev) => (prev + 1) % testimonials.length);
-  }, []);
-
-  const prevTestimonial = useCallback(() => {
-    setTestimonialIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
-  }, []);
-
-  // Auto-rotate testimonials
   useEffect(() => {
-    const interval = setInterval(nextTestimonial, 5000);
-    return () => clearInterval(interval);
-  }, [nextTestimonial]);
+    document.title = `${restaurantInfo.menuTitle} | ${restaurantInfo.name} · Belonia`;
+    return () => {
+      document.title = `${restaurantInfo.name} - Belonia's Favorite Restaurant | South Tripura`;
+    };
+  }, [restaurantInfo.menuTitle, restaurantInfo.name]);
 
-  const handleAddToCart = (item) => {
-    addToCart(item);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setReviewIndex((index) => (index + 1) % reviews.length);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const handlePopularClick = (dish) => {
+    const options = getPriceOptions(dish);
+    if (options.length > 1) {
+      navigate(`/menu?category=${dish.categoryId || 'all'}`);
+      return;
+    }
+    addToCart({
+      ...dish,
+      image: dish.image || dish.categoryImage,
+      cartKey: `${dish.id}-${options[0].label}`,
+      price: options[0].display,
+      portion: '',
+    });
   };
 
+  const mosaicSmall = useMemo(() => {
+    const seen = new Set(activeHero?.src ? [activeHero.src] : []);
+    return popularItems
+      .filter((item) => {
+        if (!item.image || seen.has(item.image)) return false;
+        seen.add(item.image);
+        return true;
+      })
+      .slice(0, 2);
+  }, [activeHero, popularItems]);
+
   return (
-    <>
-      <div ref={heroRef} className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-50 via-white to-brand-50">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-brand-200/50 rounded-full" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-200/50 rounded-full" />
-        </div>
+    <div className="bg-surface-50">
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#fff5e3] via-[#fffdf8] to-[#f5ecdc] pb-16 pt-24 md:pb-20 md:pt-32">
+        <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full border-[40px] border-brand-100/70" aria-hidden="true" />
+        <div className="pointer-events-none absolute -bottom-40 -left-24 h-80 w-80 rounded-full border-[34px] border-accent-100/60" aria-hidden="true" />
 
-        <div className="section-container relative py-20 md:py-32">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 border border-brand-200 text-brand-700 text-sm font-medium mb-8 animate-fade-in ${heroVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-              </span>
-              <span>#1 Restaurant in Belonia • 4.3★ Google Rating</span>
-            </div>
+        <div className="section-container relative">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.02fr_0.98fr] lg:gap-16">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <OpenNowBadge />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800">
+                  <Stars rating={Number(restaurantInfo.rating)} className="text-brand-500" />
+                  {restaurantInfo.rating} · {restaurantInfo.reviewCount} reviews
+                </span>
+              </div>
 
-            <h1 className={`font-display font-semibold text-4xl md:text-5xl lg:text-6xl text-gray-900 leading-tight mb-6 animate-fade-in ${heroVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }}>
-              Belonia's Favorite
-              <br />
-              <span className="text-brand-600">Restaurant</span>
-            </h1>
+              <p className="mt-7 text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+                {restaurantInfo.menuTitle} · College Square
+              </p>
+              <h1 className="mt-3 max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-gray-900 sm:text-5xl lg:text-6xl">
+                Puja special flavours,
+                <span className="block text-brand-700">good food, great mood.</span>
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-gray-600 md:text-lg">
+                Slow-cooked dum biryani, flaky rolls, steaming momos and the kind of gravies that
+                bring everyone back for one more paratha. Order for pickup or delivery from College Square.
+              </p>
 
-            <p className={`text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto animate-fade-in ${heroVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '200ms' }}>
-              Experience authentic Bengali & Indian cuisine in a warm, welcoming atmosphere. 
-              From aromatic biryanis to famous rolls, fish curries to Indo-Chinese - every dish tells a story.
-            </p>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <Link to="/menu" className="btn-primary">
+                  Explore the Puja menu
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </Link>
+                <Link to="/order" className="btn-secondary">
+                  Start an order
+                </Link>
+              </div>
 
-            <div className={`flex flex-col sm:flex-row items-center justify-center gap-6 mb-10 animate-fade-in ${heroVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '300ms' }}>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 text-brand-500" aria-label="4.3 out of 5 stars">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <svg key={star} className="w-5 h-5 fill-current" viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
+              <dl className="mt-9 grid max-w-lg grid-cols-3 gap-4 border-t border-brand-200/70 pt-5">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Dishes</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{totalDishes}+</dd>
                 </div>
-                <span className="font-semibold text-gray-900">{avgRating}</span>
-                <span className="text-gray-500">({totalReviews}+ reviews)</span>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Google</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{restaurantInfo.rating}★</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Serving since</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{restaurantInfo.since}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="relative mx-auto w-full max-w-xl">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="relative col-span-2 overflow-hidden rounded-[2rem] border-4 border-white bg-white shadow-strong">
+                  <FoodImage
+                    src={activeHero?.src}
+                    alt={activeHero?.alt || 'Signature dish at New Bawarchi 2'}
+                    loading="eager"
+                    className="h-64 w-full object-cover sm:h-80"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent p-5 pt-20 text-white">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-200">
+                      {activeHero?.caption || 'From our kitchen'}
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-semibold">
+                      {heroDish?.name || 'Chicken Dum Biriyani'}
+                    </p>
+                    <p className="mt-1 text-sm text-white/85">
+                      {heroDish?.price || 'From ₹120'} · made fresh daily
+                    </p>
+                  </div>
+                </div>
+
+                {mosaicSmall.map((dish) => (
+                  <Link
+                    key={dish.id}
+                    to={`/menu?category=${dish.categoryId || 'all'}`}
+                    className="group relative overflow-hidden rounded-[1.4rem] border-4 border-white bg-white shadow-medium"
+                  >
+                    <FoodImage
+                      src={dish.image}
+                      alt={dish.name}
+                      className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-40"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10 text-white">
+                      <p className="text-xs font-semibold leading-tight">{dish.name}</p>
+                    </div>
+                  </Link>
+                ))}
               </div>
-              <div className="hidden sm:flex items-center gap-4 text-gray-500">
-                <span>📍 College Square, Belonia</span>
-                <span>📞 +91 93669 86853</span>
+
+              <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-2xl border border-brand-200 bg-white px-4 py-3 shadow-medium sm:-left-6">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-lg">⏰</span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">Kitchen hours</p>
+                  <p className="text-sm font-semibold text-gray-900">8 AM – 10 PM daily</p>
+                </div>
               </div>
-            </div>
-
-            <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in ${heroVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '400ms' }}>
-              <Link to="/menu" className="btn-primary w-full sm:w-auto">
-                Explore Our Menu
-                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </Link>
-              <Link to="/contact" className="btn-secondary w-full sm:w-auto">
-                Book a Table
-              </Link>
-              <a href="tel:+919366986853" className="flex items-center gap-2 text-brand-600 font-medium hover:text-brand-700 transition-colors hidden sm:flex">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                Call: +91 93669 86853
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce" aria-hidden="true">
-          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <section ref={statsRef} className="py-16 bg-white border-y border-surface-200" aria-labelledby="stats-heading">
-        <div className="section-container">
-          <h2 id="stats-heading" className="sr-only">Our Achievements</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className={`text-center ${statsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              <div className="text-4xl md:text-5xl font-display font-bold text-brand-600 mb-2">#1</div>
-              <div className="text-gray-600 font-medium">Restaurant in Belonia</div>
-            </div>
-            <div className={`text-center ${statsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }}>
-              <div className="text-4xl md:text-5xl font-display font-bold text-brand-600 mb-2">4.3</div>
-              <div className="text-gray-600 font-medium">Google Rating</div>
-            </div>
-            <div className={`text-center ${statsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '200ms' }}>
-              <div className="text-4xl md:text-5xl font-display font-bold text-brand-600 mb-2">{totalReviews}+</div>
-              <div className="text-gray-600 font-medium">Happy Reviews</div>
-            </div>
-            <div className={`text-center ${statsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '300ms' }}>
-              <div className="text-4xl md:text-5xl font-display font-bold text-brand-600 mb-2">12</div>
-              <div className="text-gray-600 font-medium">Menu Categories</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section ref={featuresRef} className="py-20 bg-surface-50" aria-labelledby="features-heading">
+      {/* Quick promises */}
+      <section className="border-y border-surface-200 bg-white">
         <div className="section-container">
-          <div className="text-center mb-16">
-            <h2 id="features-heading" className={`section-title ${featuresVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              Why Choose New Bawarchi 2
-            </h2>
-            <p className={`section-subtitle mx-auto ${featuresVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }}>
-              Authentic taste, fresh ingredients, great value - the Belonia way since 2023
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <article
-                key={feature.title}
-                ref={index === 0 ? featuresRef : null}
-                className={`card p-6 text-center hover:shadow-xl transition-shadow ${featuresVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-brand-100 flex items-center justify-center text-brand-600">
-                  {feature.icon}
+          <div className="grid grid-cols-2 divide-x divide-surface-200 md:grid-cols-4">
+            {[
+              { icon: '🍽️', title: 'Dine in', copy: 'Cosy, casual seating' },
+              { icon: '🥡', title: 'Takeaway', copy: 'Packed fresh, ready fast' },
+              { icon: '💳', title: 'Easy payment', copy: 'Cash, UPI & cards' },
+              { icon: '👨‍👩‍👧', title: 'Family friendly', copy: 'Veg & non-veg menus' },
+            ].map((item) => (
+              <div key={item.title} className="flex items-center gap-3 px-2 py-5 sm:px-5">
+                <span className="text-2xl" aria-hidden="true">{item.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.copy}</p>
                 </div>
-                <h3 className="font-display font-semibold text-lg text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
-              </article>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Popular Dishes */}
-      <section className="py-20 bg-white" aria-labelledby="popular-heading">
+      {/* Popular dishes */}
+      <section className="py-16 md:py-20">
         <div className="section-container">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
+          <div className="mb-9 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 id="popular-heading" className="section-title">Popular Dishes</h2>
-              <p className="section-subtitle">Customer favorites that keep them coming back</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Ordered again and again</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+                The ones people come back for
+              </h2>
+              <p className="mt-2 max-w-2xl text-gray-600">
+                If it’s your first time, start here. These are the plates that leave the kitchen most often.
+              </p>
             </div>
-            <Link to="/menu" className="btn-primary mt-4 md:mt-0">
-              View Full Menu
-              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
+            <Link to="/menu" className="btn-secondary self-start md:self-auto">
+              See all {totalDishes} dishes
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {popularItems.map((dish, index) => (
-              <article key={dish.id} className="card group overflow-hidden">
-                <div className="relative h-48 overflow-hidden bg-surface-100">
-                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                    <span className="text-5xl">{
-                      dish.name.toLowerCase().includes('biryani') ? '🍚' :
-                      dish.name.toLowerCase().includes('roll') ? '🌯' :
-                      dish.name.toLowerCase().includes('paneer') ? '🧀' :
-                      '🍚'
-                    }</span>
-                  </div>
-                  {dish.popular && (
-                    <span className="absolute top-3 right-3 bg-brand-500 text-white text-xs font-medium px-2 py-1 rounded-full">
-                      Popular
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {popularItems.slice(0, 4).map((dish) => {
+              const multiPrice = getPriceOptions(dish).length > 1;
+              return (
+                <article
+                  key={dish.id}
+                  className="group flex flex-col overflow-hidden rounded-3xl border border-surface-200 bg-white shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-medium"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-brand-50">
+                    <FoodImage
+                      src={dish.image}
+                      alt={dish.name}
+                      fallback={dish.vegetarian ? '🥬' : '🍗'}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <span className="absolute left-3 top-3 rounded-full bg-brand-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-950">
+                      ★ Popular
                     </span>
-                  )}
-                </div>
-                <div className="p-5">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <h3 className="font-display font-semibold text-gray-900">{dish.name}</h3>
-                    <span className="badge badge-popular">⭐ Popular</span>
                   </div>
-                  <p className="text-gray-600 text-sm mb-3">Customer favorite - rated 4.5+ stars</p>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-brand-600 text-lg">{dish.price}</span>
-                    <button
-                      onClick={() => handleAddToCart(dish)}
-                      className="text-brand-600 hover:text-brand-700 text-sm font-medium flex items-center gap-1"
-                    >
-                      Add to Cart
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
+                  <div className="flex flex-1 flex-col p-5">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">
+                      {dish.categoryName}
+                    </p>
+                    <h3 className="mt-1 font-display text-xl font-semibold text-gray-900">{dish.name}</h3>
+                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-gray-500">{dish.description}</p>
+                    <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                      <span className="text-lg font-bold text-brand-800">{dish.price}</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePopularClick(dish)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-brand-700"
+                      >
+                        {multiPrice ? 'Choose' : 'Add'}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Craving categories */}
+      <section className="bg-white py-16 md:py-20">
+        <div className="section-container">
+          <div className="mb-9 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Find your craving</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+              What are you in the mood for?
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            {featuredCategories.map((category) => (
+              <Link
+                key={category.id}
+                to={`/menu?category=${category.id}`}
+                className="group relative overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-soft"
+              >
+                <FoodImage
+                  src={category.image}
+                  alt={category.name}
+                  fallback={category.icon}
+                  className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-44"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/15 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 text-white">
+                  <div>
+                    <p className="font-display text-lg font-semibold leading-tight">{category.name}</p>
+                    <p className="text-xs text-white/70">{category.items.length} dishes</p>
+                  </div>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-sm transition-colors group-hover:bg-white group-hover:text-stone-900">
+                    →
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-7 text-center">
+            <Link to="/menu" className="text-sm font-semibold text-brand-700 hover:underline">
+              Browse all {categories.length} categories →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Offers */}
+      <section className="py-16 md:py-20">
+        <div className="section-container">
+          <div className="mb-9 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Good food, good value</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+                Made for lunch breaks & lazy evenings
+              </h2>
+            </div>
+            <Link to="/menu?category=combo" className="text-sm font-semibold text-brand-700 hover:underline">
+              See combo meals →
+            </Link>
+          </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {specialOffers.map((offer) => (
+              <Link
+                key={offer.id}
+                to={offer.link}
+                className="group relative min-h-64 overflow-hidden rounded-3xl border border-surface-200 bg-stone-900 shadow-medium"
+              >
+                <FoodImage
+                  src={offer.image}
+                  alt={offer.title}
+                  className="absolute inset-0 h-full w-full object-cover opacity-70 transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/55 to-stone-950/5" />
+                <div className="relative flex h-full min-h-64 flex-col justify-end p-6 text-white">
+                  <span className="w-fit rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-200">
+                    {offer.tag}
+                  </span>
+                  <h3 className="mt-3 font-display text-2xl font-semibold">{offer.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/80">{offer.description}</p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="font-display text-xl font-semibold text-brand-300">{offer.price}</span>
+                    <span className="text-sm font-semibold text-white transition-transform group-hover:translate-x-1">
+                      View →
+                    </span>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials Carousel */}
-      <section ref={testimonialsRef} className="py-20 bg-surface-50" aria-labelledby="testimonials-heading">
+      {/* Story */}
+      <section className="border-y border-surface-200 bg-white py-16 md:py-20">
         <div className="section-container">
-          <div className="text-center mb-16">
-            <h2 id="testimonials-heading" className={`section-title ${testimonialsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              What Our Customers Say
-            </h2>
-            <p className={`section-subtitle mx-auto ${testimonialsVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }}>
-              Real reviews from real customers who've experienced New Bawarchi 2
-            </p>
-          </div>
-
-          <div className="max-w-4xl mx-auto">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div className="relative">
-              <div className="overflow-hidden">
-                <div 
-                  className="flex transition-transform duration-500 ease-out"
-                  style={{ transform: `translateX(-${testimonialIndex * 100}%)` }}
-                  role="region"
-                  aria-label="Customer testimonials carousel"
-                >
-                  {testimonials.map((testimonial, index) => (
-                    <div key={index} className="w-full flex-shrink-0 px-4">
-                      <article className="card p-8 text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold text-xl">
-                          {testimonial.avatar}
-                        </div>
-                        <div className="flex items-center justify-center gap-1 mb-4 text-brand-500" aria-label={`${testimonial.rating} out of 5 stars`}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <svg key={star} className="w-5 h-5 fill-current" viewBox="0 0 20 20" aria-hidden="true">
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
-                          ))}
-                        </div>
-                        <p className="text-gray-600 text-lg leading-relaxed mb-4">"{testimonial.text}"</p>
-                        <div>
-                          <p className="font-semibold text-gray-900">{testimonial.author}</p>
-                          <p className="text-sm text-gray-500">{testimonial.role}</p>
-                        </div>
-                      </article>
-                    </div>
-                  ))}
-                </div>
+              <div className="overflow-hidden rounded-[2rem] border-4 border-white shadow-strong">
+                <FoodImage
+                  src={galleryImages[4]?.src || galleryImages[0]?.src}
+                  alt="Inside New Bawarchi 2"
+                  fallback="🏮"
+                  className="h-72 w-full object-cover md:h-96"
+                />
               </div>
-
-              {/* Navigation Arrows */}
-              <button
-                onClick={prevTestimonial}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-8 w-12 h-12 rounded-full bg-white border border-surface-200 flex items-center justify-center text-gray-600 hover:bg-surface-50 hover:text-brand-600 transition-all shadow-medium"
-                aria-label="Previous testimonial"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                onClick={nextTestimonial}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-8 w-12 h-12 rounded-full bg-white border border-surface-200 flex items-center justify-center text-gray-600 hover:bg-surface-50 hover:text-brand-600 transition-all shadow-medium"
-                aria-label="Next testimonial"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-
-              {/* Dots */}
-              <div className="flex justify-center gap-2 mt-8" role="tablist" aria-label="Testimonial navigation">
-                {testimonials.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => goToTestimonial(index)}
-                    className={`w-2.5 h-2.5 rounded-full transition-all ${
-                      index === testimonialIndex
-                        ? 'bg-brand-500 w-8'
-                        : 'bg-surface-300 hover:bg-brand-300'
-                    }`}
-                    role="tab"
-                    aria-selected={index === testimonialIndex}
-                    aria-label={`Go to testimonial ${index + 1}`}
-                  />
-                ))}
+              <div className="absolute -bottom-5 right-4 max-w-[13rem] rounded-2xl border border-brand-200 bg-white p-4 shadow-medium sm:right-8">
+                <p className="font-display text-3xl font-semibold text-brand-700">{restaurantInfo.since}</p>
+                <p className="text-xs leading-relaxed text-gray-500">
+                  Serving Belonia from College Square with a kitchen that never cuts corners.
+                </p>
               </div>
             </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Our story</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+                A neighbourhood kitchen, not a chain.
+              </h2>
+              <p className="mt-4 leading-relaxed text-gray-600">
+                New Bawarchi 2 grew out of a simple idea: serve the food we cook for our own
+                family, at prices our neighbours can come back to. The biryani is layered and
+                slow-cooked. The rolls are made when you order. The chai is always on.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {[
+                  'Fresh ingredients, prepped in-house every day',
+                  'Separate veg and non-veg preparation',
+                  'Takeaway packed to travel — or eat in with us',
+                  'Friendly service and honest portions',
+                ].map((point) => (
+                  <li key={point} className="flex items-start gap-3 text-sm text-gray-700">
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-800">✓</span>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+              <Link to="/about" className="btn-secondary mt-7">
+                Read our story
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
-            <div className="text-center mt-10">
-              <a href="https://www.google.com/search?q=New+Bawarchi+2+Belonia+reviews" target="_blank" rel="noopener noreferrer" className="btn-secondary">
-                Read All Reviews on Google
-                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      {/* Reviews */}
+      <section className="py-16 md:py-20">
+        <div className="section-container">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">From our guests</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+              Kind words from Belonia
+            </h2>
+            <p className="mt-2 text-gray-600">A few of the reviews that make the long days worth it.</p>
+          </div>
+
+          <div className="mx-auto mt-9 max-w-3xl">
+            <article className="rounded-3xl border border-surface-200 bg-white p-7 shadow-soft md:p-10">
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 font-display text-xl font-semibold text-brand-800">
+                  {review.avatar}
+                </div>
+                <Stars rating={reviewRating} className="mt-4" />
+                <blockquote className="mt-4 font-display text-xl leading-relaxed text-gray-800 md:text-2xl">
+                  “{review.comment}”
+                </blockquote>
+                <p className="mt-5 font-semibold text-gray-900">{review.author}</p>
+                <p className="text-sm text-gray-500">{review.source} review · {review.date}</p>
+              </div>
+
+              <div className="mt-7 flex items-center justify-between gap-4 border-t border-surface-200 pt-5">
+                <button
+                  type="button"
+                  onClick={() => setReviewIndex((index) => (index - 1 + reviews.length) % reviews.length)}
+                  className="rounded-full border border-surface-200 p-2 text-gray-600 hover:border-brand-300 hover:text-brand-700"
+                  aria-label="Previous review"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div className="flex gap-1.5" role="tablist" aria-label="Choose a review">
+                  {reviews.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={index === reviewIndex}
+                      onClick={() => setReviewIndex(index)}
+                      className={`h-2 rounded-full transition-all ${
+                        index === reviewIndex ? 'w-7 bg-brand-600' : 'w-2 bg-surface-300 hover:bg-brand-300'
+                      }`}
+                      aria-label={`Review ${index + 1}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReviewIndex((index) => (index + 1) % reviews.length)}
+                  className="rounded-full border border-surface-200 p-2 text-gray-600 hover:border-brand-300 hover:text-brand-700"
+                  aria-label="Next review"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </article>
+
+            <div className="mt-6 text-center">
+              <a
+                href="https://www.google.com/search?q=New+Bawarchi+2+Belonia+reviews"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-brand-700 hover:underline"
+              >
+                Read all reviews on Google →
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Gallery teaser */}
+      <section className="bg-white py-16 md:py-20">
+        <div className="section-container">
+          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">A peek inside</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
+                Come hungry. Stay a while.
+              </h2>
+            </div>
+            <Link to="/gallery" className="text-sm font-semibold text-brand-700 hover:underline">
+              View the gallery →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {galleryImages.slice(0, 4).map((image) => (
+              <Link
+                key={image.id}
+                to="/gallery"
+                className="group relative aspect-square overflow-hidden rounded-2xl bg-surface-100"
+              >
+                <FoodImage
+                  src={image.src}
+                  alt={image.alt || image.caption}
+                  fallback="🏮"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <span className="absolute inset-0 bg-stone-950/0 transition-colors group-hover:bg-stone-950/20" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Visit / reserve CTA */}
+      <section className="relative overflow-hidden bg-[#1c1917] py-16 text-white md:py-20">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border-[32px] border-brand-500/10" aria-hidden="true" />
+        <div className="section-container relative">
+          <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">Come say hello</p>
+              <h2 className="mt-3 font-display text-3xl font-semibold md:text-4xl">
+                Lunch, dinner or a table full of friends.
+              </h2>
+              <p className="mt-3 max-w-xl leading-relaxed text-gray-300">
+                Find us at College Square, Belonia. Walk in for dine-in, call ahead for takeaway,
+                or message us on WhatsApp and we’ll get the kitchen ready.
+              </p>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={buildWhatsAppUrl(
+                    restaurantInfo.whatsapp,
+                    `Hello ${restaurantInfo.name}! I'd like to place a takeaway order.`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary"
+                >
+                  Order on WhatsApp
+                </a>
+                <Link to="/contact#reserve" className="btn-secondary border-brand-300 bg-brand-100 text-brand-900">
+                  Reserve a table
+                </Link>
+                <a
+                  href={`tel:${restaurantInfo.phoneRaw}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-white/20 px-5 py-3 text-sm font-semibold text-white hover:bg-white/5"
+                >
+                  Call {restaurantInfo.phone}
+                </a>
+              </div>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="space-y-4 text-sm">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">📍</span>
+                  <div>
+                    <p className="font-semibold text-white">Find us</p>
+                    <p className="mt-0.5 text-gray-300">{restaurantInfo.address}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">🕗</span>
+                  <div>
+                    <p className="font-semibold text-white">Hours</p>
+                    <p className="mt-0.5 text-gray-300">{restaurantInfo.hours}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">📞</span>
+                  <div>
+                    <p className="font-semibold text-white">Call ahead</p>
+                    <a href={`tel:${restaurantInfo.phoneRaw}`} className="mt-0.5 block text-gray-300 hover:text-brand-300">
+                      {restaurantInfo.phone}
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <a
+                href={restaurantInfo.directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-stone-900 hover:bg-brand-50"
+              >
+                Get directions
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </a>
@@ -388,34 +627,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* CTA Section */}
-      <section ref={ctaRef} className="py-20 bg-gradient-to-br from-brand-600 via-brand-700 to-accent-700" aria-labelledby="cta-heading">
-        <div className="section-container">
-          <div className="max-w-3xl mx-auto text-center relative" aria-hidden="true">
-            <div className="absolute inset-0 bg-gradient-to-r from-brand-400/20 to-accent-400/20 rounded-2xl" />
-          </div>
-          <div className="max-w-3xl mx-auto text-center relative">
-            <h2 id="cta-heading" className={`font-display font-semibold text-3xl md:text-4xl text-white mb-6 ${ctaVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`}>
-              Ready for a Delicious Meal?
-            </h2>
-            <p className={`text-brand-100 text-lg mb-10 ${ctaVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '100ms' }}>
-              Visit us at College Square or order for takeaway. Great food, great prices, great memories.
-            </p>
-            <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 ${ctaVisible ? 'animate-slide-up' : 'opacity-0 translate-y-4'}`} style={{ animationDelay: '200ms' }}>
-              <Link to="/contact" className="btn-primary bg-white text-brand-700 hover:bg-brand-50 w-full sm:w-auto">
-                Find Us & Order
-              </Link>
-              <a href="tel:+919366986853" className="btn-secondary border-white text-white hover:bg-white/10 w-full sm:w-auto">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                Call Now
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
+    </div>
   );
 }

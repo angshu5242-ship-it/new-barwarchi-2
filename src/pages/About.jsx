@@ -434,7 +434,7 @@ export default function About() {
                 Belonia, Tripura 799155
               </address>
               <a 
-                href="https://www.google.com/maps/dir/?api=1&destination=College+Square+Belonia+Tripura"
+                href="https://www.google.com/maps/dir/?api=1&destination=6FV9%2B9Q+Belonia,+Tripura+799155"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-brand-300 hover:text-white text-sm mt-3 transition-colors"
