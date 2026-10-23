@@ -34,7 +34,26 @@ The tables are created automatically. You can also run `db/schema.sql` in the Ne
 3. Add `DATABASE_URL` for Production, Preview and Development.
 4. Redeploy.
 
-## 3. Menu style studio (Gemini)
+## 3. Admin content is published to Neon
+
+The admin panel no longer keeps menu and photo changes only in one browser. When you click
+**Save changes**, the menu, gallery, homepage photos and restaurant details are sent to the
+`site_settings` table in Neon under the `siteContent` key. Every visitor then loads that same
+copy. The browser cache is only a fallback.
+
+To check it:
+
+1. Open `/admin123`.
+2. If the top button says **Publish to Neon**, click it once. This publishes content that was
+   previously saved only in the browser. Otherwise change a price or a restaurant detail and
+   click **Save changes**.
+3. The sidebar should say **Live on Neon**.
+4. Open the website in a private window or on another phone. The change should be there.
+
+If the sidebar says **Neon not connected**, add `DATABASE_URL` and restart. A very large gallery
+can reach the request-size limit; use image URLs or remove a few uploaded photos.
+
+## 4. Menu style studio (Gemini)
 
 The admin has a new **Menu style** tab at `/admin123`. It includes five light, ready-made
 themes and a Gemini-powered designer where you can describe a mood in plain English.
@@ -57,7 +76,7 @@ If `DATABASE_URL` is missing, the theme still works but only in the browser wher
 applied. If `GEMINI_API_KEY` is missing, the ready-made themes still work and the Gemini
 button shows a configuration message.
 
-## 4. WhatsApp Cloud API (so the restaurant gets a bot message)
+## 5. WhatsApp Cloud API (so the restaurant gets a bot message)
 
 
 
@@ -98,7 +117,7 @@ WHATSAPP_TEMPLATE_LANG=en
 
 The API automatically uses the template for the restaurant alert. The same template is sent to every active staff member who has a WhatsApp number. If the template is not set, it tries a normal text message.
 
-## 5. OTP mobile login (how it works)
+## 6. OTP mobile login (how it works)
 
 The checkout now verifies the customer's mobile number before showing the order form:
 
@@ -155,7 +174,7 @@ The order API will then reject any online order that does not include a valid OT
 
 The OTP sender lives in `server/auth.js` (`sendOtpOnWhatsApp`). You can replace that function with an SMS provider such as Twilio, MSG91 or Fast2SMS. The database storage, hashing, expiry, attempt limits and session tokens stay the same.
 
-## 6. Staff login and order alerts
+## 7. Staff login and order alerts
 
 Staff do not use the owner's admin password. They get their own username and password and open
 `/staff` on a phone or kitchen tablet.
@@ -200,7 +219,7 @@ Every active number receives the same `new_order_alert` template as the restaura
 Staff can also call or WhatsApp the customer, and move the order through the same statuses as the
 admin. Deactivating a staff member stops their WhatsApp alerts and blocks new sign-ins.
 
-## 7. Admin orders
+## 8. Admin orders
 
 - Open `/admin123` and sign in with the admin password.
 - Click **Orders**.
@@ -208,13 +227,16 @@ admin. Deactivating a staff member stops their WhatsApp alerts and blocks new si
 - Change the status to Confirmed → Preparing → Ready → Out for delivery → Completed.
 - The `x-admin-password` header uses `ADMIN_PASSWORD` (default `nb2admin2024`). Keep the server variable and the admin login password in sync.
 
-## 8. Test checklist
+## 9. Test checklist
 
 - [ ] `/api/orders?health=1` shows `database:true` and `otp:true`
 - [ ] **Send OTP on WhatsApp** returns success; the code arrives on the customer's number
 - [ ] Wrong OTP is rejected and the attempt limit works
 - [ ] Verified number shows **Number verified** at `/order`
 - [ ] Place an order at `/order`
+- [ ] Admin → Menu & photos change appears on the website in a private window after **Save changes**
+- [ ] Admin → Restaurant details change appears in a private window after **Save changes**
+- [ ] The admin badge says **Saved** and the sidebar says **Live on Neon**
 - [ ] Order appears in Admin → Orders with `phoneVerified` shown in the API response
 - [ ] WhatsApp order alert arrives at `WHATSAPP_ORDER_TO` (or the fallback link appears)
 - [ ] A staff account signs in at `/staff` and sees the order

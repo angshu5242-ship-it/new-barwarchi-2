@@ -15,6 +15,14 @@ export function saveSiteMenuStyle(menuStyle, password) {
   });
 }
 
+export function saveSiteContent(siteContent, password) {
+  return apiRequest(SITE_PATH, {
+    method: 'POST',
+    headers: { 'x-admin-password': password },
+    body: JSON.stringify({ siteContent }),
+  });
+}
+
 export function generateMenuStyle(prompt, currentStyle, password) {
   return apiRequest(STYLIST_PATH, {
     method: 'POST',

@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   last_sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Small key/value store for site-wide settings such as the menu theme.
+-- Small key/value store for site-wide settings such as the menu theme
+-- and the published menu/gallery/homepage content.
 CREATE TABLE IF NOT EXISTS site_settings (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,

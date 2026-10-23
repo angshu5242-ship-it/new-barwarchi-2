@@ -6,13 +6,13 @@ import { handleSiteRequest } from './server/site.js'
 import { handleMenuStylistRequest } from './server/menu-stylist.js'
 import { handleStaffRequest } from './server/staff.js'
 
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes = 200_000) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
     req.on('data', (chunk) => {
       size += chunk.length
-      if (size > 200_000) {
+      if (size > maxBytes) {
         reject(new Error('Request body is too large.'))
         req.destroy()
         return
@@ -45,7 +45,7 @@ function localApi() {
         const query = Object.fromEntries(url.searchParams.entries())
         const body =
           req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE'
-            ? await readJsonBody(req)
+            ? await readJsonBody(req, isSite ? 8_000_000 : 200_000)
             : null
         const handler = isAuth
           ? handleAuthRequest

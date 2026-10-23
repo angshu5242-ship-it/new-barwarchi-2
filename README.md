@@ -4,7 +4,7 @@ The website for **New Bawarchi 2**, College Square, Belonia, Tripura 799155.
 
 It includes the Bawarchi Puja Special menu, online ordering with WhatsApp OTP login, a live
 staff order screen, WhatsApp order alerts, a printable A4 QR menu, and an admin panel for the
-menu, food photos, restaurant details and staff accounts.
+menu, food photos, restaurant details, staff accounts and the live site content.
 
 ## Tech stack
 
@@ -78,6 +78,23 @@ deployment walkthrough.
 - Staff accounts are stored in Neon. Deactivating an account blocks sign-in and removes it from
   future WhatsApp alerts.
 - Staff tokens last 12 hours. Order APIs re-check that the account is still active.
+
+## Admin content and Neon
+
+Changes made in **Admin → Menu & photos**, **Gallery**, **Homepage** and **Restaurant details**
+are published to the Neon `site_settings` table under the `siteContent` key. Every visitor loads
+that same copy, so editing from one phone or computer updates the live website for everyone.
+
+The browser keeps a local cache for faster loading and offline recovery, but Neon is the source
+of truth once content has been published. If `DATABASE_URL` is missing, the admin can still save
+locally and the screen warns that the changes are not online.
+
+If you already had menu or photo changes saved in the old browser-only version, open
+`/admin123` and click **Publish to Neon** once. That sends the current content to the live site
+without needing to edit anything first.
+
+Uploaded photos are compressed in the browser. The site content request has a safety limit of
+about 3.5 MB; if a very large gallery reaches that limit, use image URLs or remove a few uploads.
 
 ## Deploy to Vercel
 

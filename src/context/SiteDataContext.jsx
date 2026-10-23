@@ -10,7 +10,7 @@ import { menuCategories as defaultMenuCategories } from '../data/menu';
 import { galleryImages as defaultGalleryImages } from '../data/gallery';
 import { heroImages as defaultHeroImages, restaurantInfo as defaultRestaurantInfo } from '../data/site';
 import { defaultMenuStyle, sanitizeMenuStyle } from '../data/menuStyles';
-import { getSiteSettings, saveSiteMenuStyle } from '../utils/siteApi';
+import { getSiteSettings, saveSiteContent, saveSiteMenuStyle } from '../utils/siteApi';
 
 const STORAGE_KEYS = {
   // Versioned keys keep the new Bawarchi Puja Special menu from being hidden
@@ -21,6 +21,10 @@ const STORAGE_KEYS = {
   info: 'nb2_puja_restaurant_info',
   style: 'nb2_menu_style',
 };
+
+// Vercel limits a serverless request body to about 4.5 MB. Keep a safety
+// margin so the API can return a useful message before that hard limit.
+const MAX_SITE_CONTENT_BYTES = 3_500_000;
 
 const SiteDataContext = createContext(null);
 
@@ -93,6 +97,15 @@ function normalizeInfo(info) {
   return { ...defaultRestaurantInfo, ...info };
 }
 
+function normalizeContent(content) {
+  return {
+    categories: mergeCategoriesWithDefaults(content?.categories),
+    galleryImages: normalizeGallery(content?.galleryImages),
+    heroImages: normalizeHero(content?.heroImages),
+    restaurantInfo: normalizeInfo(content?.restaurantInfo),
+  };
+}
+
 function getStoredSize() {
   try {
     return Object.values(STORAGE_KEYS).reduce(
@@ -101,6 +114,18 @@ function getStoredSize() {
     );
   } catch {
     return 0;
+  }
+}
+
+function cacheContent(content) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(content.categories));
+    localStorage.setItem(STORAGE_KEYS.gallery, JSON.stringify(content.galleryImages));
+    localStorage.setItem(STORAGE_KEYS.hero, JSON.stringify(content.heroImages));
+    localStorage.setItem(STORAGE_KEYS.info, JSON.stringify(content.restaurantInfo));
+  } catch {
+    // The online copy is the source of truth. A full browser cache should not
+    // stop an admin save from reaching Neon.
   }
 }
 
@@ -122,6 +147,8 @@ export function SiteDataProvider({ children }) {
   );
   const [storageBytes, setStorageBytes] = useState(getStoredSize);
   const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [remoteState, setRemoteState] = useState('loading');
+  const [contentPublished, setContentPublished] = useState(false);
 
   useEffect(() => {
     const handleStorage = (event) => {
@@ -150,62 +177,130 @@ export function SiteDataProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
-    getSiteSettings().then((result) => {
-      if (cancelled || !result.ok) return;
-      const remote = result.data?.settings?.menuStyle;
-      if (!remote) return;
-      const next = sanitizeMenuStyle(remote);
-      setMenuStyle(next);
-      try {
-        localStorage.setItem(STORAGE_KEYS.style, JSON.stringify(next));
-      } catch {
-        // Best effort only.
-      }
-      setStorageBytes(getStoredSize());
-    });
+    getSiteSettings()
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setRemoteState('offline');
+          return;
+        }
+
+        const settings = result.data?.settings || {};
+
+        if (settings.menuStyle) {
+          const next = sanitizeMenuStyle(settings.menuStyle);
+          setMenuStyle(next);
+          try {
+            localStorage.setItem(STORAGE_KEYS.style, JSON.stringify(next));
+          } catch {
+            // Best effort only.
+          }
+        }
+
+        if (settings.siteContent) {
+          const next = normalizeContent(settings.siteContent);
+          setCategories(next.categories);
+          setGalleryImages(next.galleryImages);
+          setHeroImages(next.heroImages);
+          setRestaurantInfo(next.restaurantInfo);
+          cacheContent(next);
+          setContentPublished(true);
+          setLastSavedAt(
+            settings.siteContentUpdatedAt ? new Date(settings.siteContentUpdatedAt) : new Date(),
+          );
+        } else {
+          setContentPublished(false);
+        }
+
+        setStorageBytes(getStoredSize());
+        setRemoteState(result.data?.persisted ? 'online' : 'offline');
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteState('offline');
+      });
+
     return () => {
       cancelled = true;
     };
   }, []);
 
   const saveAll = useCallback(
-    (next = {}) => {
-      const nextCategories = next.categories ?? categories;
-      const nextGallery = next.galleryImages ?? galleryImages;
-      const nextHero = next.heroImages ?? heroImages;
-      const nextInfo = next.restaurantInfo ?? restaurantInfo;
+    async (next = {}, adminPassword) => {
+      const nextContent = {
+        categories: next.categories ?? categories,
+        galleryImages: next.galleryImages ?? galleryImages,
+        heroImages: next.heroImages ?? heroImages,
+        restaurantInfo: next.restaurantInfo ?? restaurantInfo,
+      };
 
-      const previous = Object.fromEntries(
-        Object.values(STORAGE_KEYS).map((key) => [key, localStorage.getItem(key)]),
-      );
-
+      let serialized = '';
       try {
-        localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(nextCategories));
-        localStorage.setItem(STORAGE_KEYS.gallery, JSON.stringify(nextGallery));
-        localStorage.setItem(STORAGE_KEYS.hero, JSON.stringify(nextHero));
-        localStorage.setItem(STORAGE_KEYS.info, JSON.stringify(nextInfo));
-
-        setCategories(mergeCategoriesWithDefaults(nextCategories));
-        setGalleryImages(normalizeGallery(nextGallery));
-        setHeroImages(normalizeHero(nextHero));
-        setRestaurantInfo(normalizeInfo(nextInfo));
-        setStorageBytes(getStoredSize());
-        setLastSavedAt(new Date());
-        return { ok: true };
-      } catch (error) {
-        // A quota error can happen halfway through. Put the previous values back
-        // so a failed save never leaves the site in a mixed state.
-        Object.entries(previous).forEach(([key, value]) => {
-          try {
-            if (value === null) localStorage.removeItem(key);
-            else localStorage.setItem(key, value);
-          } catch {
-            // Best effort only.
-          }
-        });
-        setStorageBytes(getStoredSize());
-        return { ok: false, error };
+        serialized = JSON.stringify(nextContent);
+      } catch {
+        return {
+          ok: false,
+          persisted: false,
+          localSaved: false,
+          error: 'The content could not be prepared for saving. Please remove the last change and try again.',
+        };
       }
+
+      if (serialized.length > MAX_SITE_CONTENT_BYTES) {
+        return {
+          ok: false,
+          persisted: false,
+          localSaved: false,
+          error:
+            'This content is too large to publish online. Remove a few uploaded photos or use image URLs, then save again.',
+        };
+      }
+
+      const normalized = normalizeContent(nextContent);
+      cacheContent(normalized);
+      setCategories(normalized.categories);
+      setGalleryImages(normalized.galleryImages);
+      setHeroImages(normalized.heroImages);
+      setRestaurantInfo(normalized.restaurantInfo);
+      setStorageBytes(getStoredSize());
+
+      if (!adminPassword) {
+        setLastSavedAt(new Date());
+        return { ok: true, persisted: false, localSaved: true };
+      }
+
+      const result = await saveSiteContent(nextContent, adminPassword);
+      if (!result.ok) {
+        return {
+          ok: false,
+          persisted: false,
+          localSaved: true,
+          error:
+            result.error ||
+            'The changes were saved on this device but could not be published to Neon.',
+        };
+      }
+
+      if (result.data?.siteContent) {
+        const saved = normalizeContent(result.data.siteContent);
+        cacheContent(saved);
+        setCategories(saved.categories);
+        setGalleryImages(saved.galleryImages);
+        setHeroImages(saved.heroImages);
+        setRestaurantInfo(saved.restaurantInfo);
+      }
+
+      setStorageBytes(getStoredSize());
+      setLastSavedAt(
+        result.data?.updatedAt ? new Date(result.data.updatedAt) : new Date(),
+      );
+      setRemoteState(result.data?.persisted ? 'online' : 'offline');
+      setContentPublished(Boolean(result.data?.persisted));
+
+      return {
+        ok: true,
+        persisted: Boolean(result.data?.persisted),
+        localSaved: true,
+      };
     },
     [categories, galleryImages, heroImages, restaurantInfo],
   );
@@ -239,6 +334,7 @@ export function SiteDataProvider({ children }) {
       }
 
       const saved = result.data?.style ? applyMenuStyle(result.data.style) : next;
+      setRemoteState(result.data?.persisted ? 'online' : 'offline');
       return {
         ok: true,
         style: saved,
@@ -248,26 +344,50 @@ export function SiteDataProvider({ children }) {
     [applyMenuStyle],
   );
 
-  const resetAll = useCallback(() => {
-    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
-    setCategories(defaultMenuCategories);
-    setGalleryImages(defaultGalleryImages);
-    setHeroImages(defaultHeroImages);
-    setRestaurantInfo(defaultRestaurantInfo);
-    setMenuStyle(defaultMenuStyle);
-    setStorageBytes(getStoredSize());
-    setLastSavedAt(null);
-  }, []);
+  const resetAll = useCallback(
+    async (adminPassword) => {
+      Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+      setMenuStyle(defaultMenuStyle);
+      setStorageBytes(getStoredSize());
+
+      const contentResult = await saveAll(
+        {
+          categories: defaultMenuCategories,
+          galleryImages: defaultGalleryImages,
+          heroImages: defaultHeroImages,
+          restaurantInfo: defaultRestaurantInfo,
+        },
+        adminPassword,
+      );
+
+      let styleResult = { ok: true, persisted: false };
+      if (adminPassword) {
+        styleResult = await saveMenuStyle(defaultMenuStyle, adminPassword);
+      }
+
+      return {
+        ok: contentResult.ok && styleResult.ok,
+        persisted: Boolean(contentResult.persisted && styleResult.persisted),
+        error: contentResult.error || styleResult.error || '',
+      };
+    },
+    [saveAll, saveMenuStyle],
+  );
 
   const importData = useCallback(
-    (data) => {
-      if (!data || typeof data !== 'object') return { ok: false, error: new Error('Invalid backup file.') };
-      return saveAll({
-        categories: data.categories ?? data.menuCategories ?? categories,
-        galleryImages: data.galleryImages ?? data.gallery ?? galleryImages,
-        heroImages: data.heroImages ?? heroImages,
-        restaurantInfo: data.restaurantInfo ?? data.info ?? restaurantInfo,
-      });
+    (data, adminPassword) => {
+      if (!data || typeof data !== 'object') {
+        return Promise.resolve({ ok: false, error: 'Invalid backup file.' });
+      }
+      return saveAll(
+        {
+          categories: data.categories ?? data.menuCategories ?? categories,
+          galleryImages: data.galleryImages ?? data.gallery ?? galleryImages,
+          heroImages: data.heroImages ?? heroImages,
+          restaurantInfo: data.restaurantInfo ?? data.info ?? restaurantInfo,
+        },
+        adminPassword,
+      );
     },
     [categories, galleryImages, heroImages, restaurantInfo, saveAll],
   );
@@ -312,6 +432,8 @@ export function SiteDataProvider({ children }) {
       popularItems,
       storageBytes,
       lastSavedAt,
+      remoteState,
+      contentPublished,
       saveAll,
       resetAll,
       importData,
@@ -337,6 +459,8 @@ export function SiteDataProvider({ children }) {
       popularItems,
       storageBytes,
       lastSavedAt,
+      remoteState,
+      contentPublished,
       saveAll,
       resetAll,
       importData,

@@ -397,6 +397,8 @@ export default function Admin() {
     defaults,
     storageBytes,
     lastSavedAt,
+    remoteState,
+    contentPublished,
     saveAll,
     resetAll,
     saveMenuStyle,
@@ -409,6 +411,7 @@ export default function Admin() {
   const [draftHero, setDraftHero] = useState(() => clone(heroImages));
   const [draftInfo, setDraftInfo] = useState(() => clone(restaurantInfo));
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
   const [picker, setPicker] = useState(null);
   const [newCategoryOpen, setNewCategoryOpen] = useState(false);
@@ -420,6 +423,19 @@ export default function Admin() {
   const [ordersService, setOrdersService] = useState(null);
   const galleryInputRef = useRef(null);
   const importInputRef = useRef(null);
+
+  const canSave = !saving && remoteState !== 'loading' && (dirty || !contentPublished);
+  const saveLabel = saving
+    ? 'Publishing…'
+    : remoteState === 'loading'
+      ? 'Checking online copy…'
+      : dirty
+        ? 'Save changes'
+        : contentPublished
+          ? 'All saved'
+          : remoteState === 'offline'
+            ? 'Save locally'
+            : 'Publish to Neon';
 
   const itemCount = useMemo(
     () => draftCategories.reduce((sum, category) => sum + category.items.length, 0),
@@ -536,17 +552,38 @@ export default function Admin() {
     setAuthed(false);
   };
 
-  const handleSave = () => {
-    const result = saveAll({
-      categories: draftCategories,
-      galleryImages: draftGallery,
-      heroImages: draftHero,
-      restaurantInfo: draftInfo,
-    });
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    let result;
+    try {
+      result = await saveAll(
+        {
+          categories: draftCategories,
+          galleryImages: draftGallery,
+          heroImages: draftHero,
+          restaurantInfo: draftInfo,
+        },
+        ADMIN_PASSWORD,
+      );
+    } catch {
+      result = {
+        ok: false,
+        persisted: false,
+        error: 'Could not publish the changes. Please check your connection and try again.',
+      };
+    } finally {
+      setSaving(false);
+    }
 
     if (result.ok) {
       setDirty(false);
-      showNotice('success', 'Saved. Your menu, photos and details are up to date.');
+      showNotice(
+        'success',
+        result.persisted
+          ? 'Published. Your menu, photos and details are now live for every visitor.'
+          : 'Saved on this device. Neon is not connected, so the changes are not online yet.',
+      );
     } else {
       const isQuota =
         result.error?.name === 'QuotaExceededError' ||
@@ -555,7 +592,7 @@ export default function Admin() {
         'error',
         isQuota
           ? 'Browser storage is full. Remove a few uploads or use image URLs, then save again.'
-          : 'Could not save the changes. Please try again.',
+          : result.error || 'Could not publish the changes. Please try again.',
       );
     }
   };
@@ -569,18 +606,38 @@ export default function Admin() {
     showNotice('success', 'Unsaved changes discarded.');
   };
 
-  const handleResetAll = () => {
+  const handleResetAll = async () => {
     const confirmed = window.confirm(
       'Reset everything to the original menu, photos and restaurant details? This cannot be undone.',
     );
     if (!confirmed) return;
-    resetAll();
+
+    setSaving(true);
+    let result;
+    try {
+      result = await resetAll(ADMIN_PASSWORD);
+    } catch {
+      result = {
+        ok: false,
+        persisted: false,
+        error: 'Could not reset the content. Please check your connection and try again.',
+      };
+    } finally {
+      setSaving(false);
+    }
     setDraftCategories(clone(defaults.categories));
     setDraftGallery(clone(defaults.galleryImages));
     setDraftHero(clone(defaults.heroImages));
     setDraftInfo(clone(defaults.restaurantInfo));
-    setDirty(false);
-    showNotice('success', 'Everything has been reset to the original content.');
+    setDirty(!result.ok);
+    showNotice(
+      result.ok ? 'success' : 'error',
+      result.ok
+        ? result.persisted
+          ? 'Everything has been reset and published for every visitor.'
+          : 'Everything has been reset on this device. Neon is not connected, so the reset is not online yet.'
+        : result.error || 'The reset was saved on this device but could not be published.',
+    );
   };
 
   const handleExport = () => {
@@ -708,9 +765,9 @@ export default function Admin() {
       value: '',
       title: 'Add a photo for the new dish',
       aspect: '4 / 3',
-      maxWidth: 1000,
-      maxHeight: 1000,
-      quality: 0.76,
+      maxWidth: 900,
+      maxHeight: 900,
+      quality: 0.74,
     });
   };
 
@@ -805,9 +862,9 @@ export default function Admin() {
       value: '',
       title: 'Add a gallery photo',
       aspect: '4 / 3',
-      maxWidth: 1600,
-      maxHeight: 1200,
-      quality: 0.76,
+      maxWidth: 1200,
+      maxHeight: 900,
+      quality: 0.74,
     });
   };
 
@@ -823,9 +880,9 @@ export default function Admin() {
     for (const file of imageFiles) {
       try {
         const result = await compressImage(file, {
-          maxWidth: 1600,
-          maxHeight: 1200,
-          quality: 0.76,
+          maxWidth: 1200,
+          maxHeight: 900,
+          quality: 0.74,
         });
         added.push({
           id: uid('gallery'),
@@ -875,9 +932,9 @@ export default function Admin() {
       value: '',
       title: 'Add a homepage hero photo',
       aspect: '16 / 10',
-      maxWidth: 1600,
-      maxHeight: 1000,
-      quality: 0.8,
+      maxWidth: 1400,
+      maxHeight: 875,
+      quality: 0.76,
     });
   };
 
@@ -911,9 +968,9 @@ export default function Admin() {
       value: item.image || '',
       title: `Photo for ${item.name}`,
       aspect: '4 / 3',
-      maxWidth: 1000,
-      maxHeight: 1000,
-      quality: 0.76,
+      maxWidth: 900,
+      maxHeight: 900,
+      quality: 0.74,
     });
   };
 
@@ -924,9 +981,9 @@ export default function Admin() {
       value: category.image || '',
       title: `Cover photo for ${category.name}`,
       aspect: '4 / 3',
-      maxWidth: 1200,
-      maxHeight: 900,
-      quality: 0.76,
+      maxWidth: 1000,
+      maxHeight: 750,
+      quality: 0.74,
     });
   };
 
@@ -950,12 +1007,18 @@ export default function Admin() {
             </Link>
             <span
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                dirty
+                dirty || !contentPublished
                   ? 'bg-amber-100 text-amber-800'
                   : 'bg-emerald-100 text-emerald-800'
               }`}
             >
-              {dirty ? 'Unsaved' : 'Saved'}
+              {dirty
+                ? 'Unsaved'
+                : remoteState === 'loading'
+                  ? 'Checking…'
+                  : contentPublished
+                    ? 'Saved'
+                    : 'Local only'}
             </span>
           </div>
 
@@ -987,10 +1050,10 @@ export default function Admin() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={!dirty}
+              disabled={!canSave}
               className="btn-primary px-4 py-2 text-sm"
             >
-              {dirty ? 'Save changes' : 'All saved'}
+              {saveLabel}
             </button>
           </div>
         </div>
@@ -1034,7 +1097,7 @@ export default function Admin() {
 
             <div className="rounded-2xl border border-surface-200 bg-white p-4 shadow-soft">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-gray-700">Browser storage</span>
+                <span className="font-semibold text-gray-700">Local cache</span>
                 <span className="font-medium text-gray-500">{formatBytes(storageBytes)}</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-200">
@@ -1046,14 +1109,35 @@ export default function Admin() {
                 />
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-gray-500">
-                Photos are compressed automatically. If storage fills up, use an image URL or remove an unused upload.
+                Photos are compressed before upload. The live copy is stored in Neon; this browser
+                keeps a cache for faster loading and offline recovery.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4">
-              <p className="text-xs font-semibold text-brand-900">A quick note</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-brand-800">
-                Changes save in this browser. Download a backup from Overview before switching phones or computers.
+            <div className={`rounded-2xl border p-4 ${
+              remoteState === 'online'
+                ? 'border-emerald-200 bg-emerald-50'
+                : remoteState === 'offline'
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-brand-200 bg-brand-50'
+            }`}>
+              <p className="text-xs font-semibold text-gray-900">
+                {remoteState === 'online'
+                  ? contentPublished
+                    ? 'Live on Neon'
+                    : 'Neon connected'
+                  : remoteState === 'offline'
+                    ? 'Neon not connected'
+                    : 'Connecting to Neon…'}
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-700">
+                {remoteState === 'online'
+                  ? contentPublished
+                    ? 'Saving publishes the menu, photos and restaurant details for every visitor.'
+                    : 'Publish the current content to make it live for every visitor.'
+                  : remoteState === 'offline'
+                    ? 'Changes can still be saved on this device, but they will not appear online until DATABASE_URL is connected.'
+                    : 'Checking the online copy of your menu and photos.'}
               </p>
             </div>
           </aside>
@@ -1076,14 +1160,20 @@ export default function Admin() {
                   <StatCard label="Gallery" value={draftGallery.length} detail={`${draftHero.length} homepage photos`} icon="🖼️" />
                 </div>
 
-                {dirty && (
+                {(dirty || (remoteState !== 'loading' && !contentPublished)) && (
                   <div className="flex flex-col justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center">
                     <div>
-                      <p className="text-sm font-semibold text-amber-900">You have unsaved changes</p>
-                      <p className="text-xs text-amber-800">Save them before leaving the admin panel.</p>
+                      <p className="text-sm font-semibold text-amber-900">
+                        {dirty ? 'You have unsaved changes' : 'Your content is only on this device'}
+                      </p>
+                      <p className="text-xs text-amber-800">
+                        {dirty
+                          ? 'Publish them so every visitor sees the same menu and photos.'
+                          : 'Publish the current menu, photos and details to Neon for every visitor.'}
+                      </p>
                     </div>
-                    <button type="button" onClick={handleSave} className="btn-primary px-4 py-2 text-sm">
-                      Save changes
+                    <button type="button" onClick={handleSave} disabled={!canSave} className="btn-primary px-4 py-2 text-sm">
+                      {saveLabel}
                     </button>
                   </div>
                 )}
@@ -1189,17 +1279,18 @@ export default function Admin() {
                       />
                     </div>
                     <p className="mt-3 text-[10px] text-gray-400">
-                      Last saved: {lastSavedAt ? lastSavedAt.toLocaleString() : 'not saved yet'}
+                      Last published: {lastSavedAt ? lastSavedAt.toLocaleString() : 'not published yet'}
                     </p>
                   </section>
 
                   <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
                     <h2 className="font-display text-xl font-semibold text-rose-900">Start fresh</h2>
                     <p className="mt-1 text-xs leading-relaxed text-rose-800">
-                      Restore the original menu, photos and restaurant details. This removes all custom changes made in this browser.
+                      Restore the original menu, photos and restaurant details. This removes all
+                      custom changes from the live site and this browser.
                     </p>
-                    <button type="button" onClick={handleResetAll} className="mt-4 rounded-xl border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-100">
-                      Reset everything
+                    <button type="button" onClick={handleResetAll} disabled={saving} className="mt-4 rounded-xl border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-100">
+                      {saving ? 'Resetting…' : 'Reset everything'}
                     </button>
                   </section>
                 </div>
@@ -1541,9 +1632,9 @@ export default function Admin() {
                               value: image.src || '',
                               title: 'Change gallery photo',
                               aspect: '4 / 3',
-                              maxWidth: 1600,
-                              maxHeight: 1200,
-                              quality: 0.76,
+                              maxWidth: 1200,
+                              maxHeight: 900,
+                              quality: 0.74,
                             })
                           }
                           className="group relative block aspect-[4/3] w-full overflow-hidden bg-brand-50"
@@ -1637,9 +1728,9 @@ export default function Admin() {
                               value: image.src || '',
                               title: 'Change homepage photo',
                               aspect: '16 / 10',
-                              maxWidth: 1600,
-                              maxHeight: 1000,
-                              quality: 0.8,
+                              maxWidth: 1400,
+                              maxHeight: 875,
+                              quality: 0.76,
                             })
                           }
                           className="group relative block aspect-[16/10] w-full overflow-hidden bg-brand-50"
@@ -1816,10 +1907,16 @@ export default function Admin() {
 
                 <div className="flex flex-col gap-2 rounded-2xl border border-surface-200 bg-white p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-gray-500">
-                    {dirty ? 'You have unsaved changes.' : 'All changes are saved.'}
+                    {dirty
+                      ? 'You have changes that are not online yet.'
+                      : remoteState === 'loading'
+                        ? 'Checking the online copy of your content.'
+                        : contentPublished
+                          ? 'All changes are published.'
+                          : 'This content is only on this device. Publish it to Neon for every visitor.'}
                   </p>
-                  <button type="button" onClick={handleSave} disabled={!dirty} className="btn-primary px-4 py-2 text-sm">
-                    Save changes
+                  <button type="button" onClick={handleSave} disabled={!canSave} className="btn-primary px-4 py-2 text-sm">
+                    {saveLabel}
                   </button>
                 </div>
               </div>

@@ -412,16 +412,16 @@ export default function Home() {
                 A neighbourhood kitchen, not a chain.
               </h2>
               <p className="mt-4 leading-relaxed text-gray-600">
-                New Bawarchi 2 grew out of a simple idea: serve the food we cook for our own
-                family, at prices our neighbours can come back to. The biryani is layered and
-                slow-cooked. The rolls are made when you order. The chai is always on.
+                {restaurantInfo.name} is a neighbourhood kitchen at College Square, Belonia. Our
+                menu covers biryani, rolls, momos, fried rice, chowmein, gravies and combo meals —
+                with veg and non-veg choices for the whole table.
               </p>
               <ul className="mt-6 space-y-3">
                 {[
-                  'Fresh ingredients, prepped in-house every day',
-                  'Separate veg and non-veg preparation',
-                  'Takeaway packed to travel — or eat in with us',
-                  'Friendly service and honest portions',
+                  'Dine in, take away or order for local delivery',
+                  'Vegetarian and non-vegetarian choices',
+                  'Call or WhatsApp to place your order',
+                  restaurantInfo.hours,
                 ].map((point) => (
                   <li key={point} className="flex items-start gap-3 text-sm text-gray-700">
                     <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-800">✓</span>
