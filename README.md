@@ -69,6 +69,9 @@ Copy `.env.example` to `.env.local`. The important values are:
 See [SETUP-NEON-WHATSAPP.md](SETUP-NEON-WHATSAPP.md) for the full Neon, WhatsApp, OTP, staff and
 deployment walkthrough.
 
+For a click-by-click script to demonstrate the site to the restaurant owner, see
+[OWNER-DEMO-SCRIPT.md](OWNER-DEMO-SCRIPT.md).
+
 ## Staff notifications
 
 - **WhatsApp:** new orders are sent to `WHATSAPP_ORDER_TO` and every active staff account with a
