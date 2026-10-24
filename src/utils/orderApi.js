@@ -31,3 +31,37 @@ export function patchOrderStatus(id, status, password) {
     body: JSON.stringify({ id, status }),
   });
 }
+
+export function getOrderTracking(id) {
+  return apiRequest(`${API_PATH}?track=${encodeURIComponent(id)}`, { cache: 'no-store' });
+}
+
+export function getLoyalty(phone, token) {
+  return apiRequest(
+    `${API_PATH}?loyalty=${encodeURIComponent(phone)}&token=${encodeURIComponent(token)}`,
+    { cache: 'no-store' },
+  );
+}
+
+export function getAnalytics(days, password) {
+  return apiRequest(`${API_PATH}?analytics=1&days=${encodeURIComponent(days)}`, {
+    cache: 'no-store',
+    headers: { 'x-admin-password': password },
+  });
+}
+
+export function requestReview(id, password) {
+  return apiRequest(API_PATH, {
+    method: 'POST',
+    headers: { 'x-admin-password': password },
+    body: JSON.stringify({ action: 'review-request', id }),
+  });
+}
+
+export function patchPaymentStatus(id, paymentStatus, password) {
+  return apiRequest(API_PATH, {
+    method: 'PATCH',
+    headers: { 'x-admin-password': password },
+    body: JSON.stringify({ action: 'payment', id, paymentStatus }),
+  });
+}

@@ -160,7 +160,8 @@ const defaultRestaurantInfo = {
   hours: 'Daily: 8:00 AM - 10:00 PM',
   rating: '4.3',
   reviewCount: '25+',
-  googleMapsUrl: 'https://www.google.com/maps/place/Restaurant+New+Bawarchi+2/data=!4m2!3m1!1s0x0:0xed73a0c118858ff',
+  googleMapsUrl:
+    'https://www.google.com/maps/place/Restaurant+New+Bawarchi+2/@23.2434685,91.4694645,17z/data=!3m1!4b1!4m6!3m5!1s0x375373ec84739927:0xed73a0c118858ff!8m2!3d23.2434685!4d91.4694645!16s%2Fg%2F11wc2vy1m_',
 };
 
 const AdminContext = createContext(null);

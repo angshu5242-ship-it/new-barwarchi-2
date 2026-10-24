@@ -51,9 +51,11 @@ You want to see the database and OTP service as available. WhatsApp may show `fa
 | --- | --- | --- |
 | Website | `/` | Customer view |
 | Menu | `/menu` | Food, filters and cart |
+| Catering | `/catering` | Menu-based event estimator |
 | Staff | `/staff` | Kitchen order screen |
 | Admin | `/admin123` | Owner controls |
 | Print menu | `/menu-print` | A4 menu and QR code |
+| Tracking | created after the demo order | Public status page and reorder |
 
 ### Demo accounts
 
@@ -71,6 +73,8 @@ You want to see the database and OTP service as available. WhatsApp may show `fa
 - If WhatsApp OTP is connected, use the owner’s phone so they can see the message arrive.
 - Start with an empty cart.
 - Create a clearly labelled test order, for example name **“Owner Demo”**.
+- Choose a delivery area during checkout so the owner can see the server-calculated fee.
+- Keep UPI **off** unless the owner has confirmed a real UPI ID. The current demo uses pay-at-pickup / pay-on-delivery.
 - After the demo, mark that test order **Cancelled** or **Completed**. Do not delete real orders.
 
 ### Keep these closed
@@ -187,21 +191,26 @@ Then click **Explore the Puja menu**.
 7. Enter name: **Owner Demo**.
 8. Choose **Delivery** to show the address field.
 9. Enter a demo address, for example: **Demo address, College Square, Belonia**.
-10. Add a note: **Less spicy**.
-11. Tick the consent checkbox.
-12. Click **Place order**.
+10. Choose a delivery area, for example **College Square / Market**, and point to the fee.
+11. Keep **As soon as possible** or choose **Schedule for later** and pick a time; choose a preparation time.
+12. Add a note: **Less spicy**.
+13. Tick the consent checkbox.
+14. Click **Place order**.
 
 **Say:**
 
-> “The order is saved in the online database and appears on the kitchen screen. The customer gets an order ID and a summary. No online payment is collected — payment is at pickup or on delivery.”
+> “The order is saved in the online database and appears on the kitchen screen. The delivery fee comes from the area you published in the admin panel, and the server recalculates it so a customer cannot edit it in the browser. No online payment is collected while UPI is off — payment is at pickup or on delivery.”
 
 **Show:**
 
 - The thank-you screen
 - Order ID
-- Order type
+- Order type and delivery area
+- Scheduled or ASAP timing
 - Total
 - Item summary
+- The loyalty card (provisional terms)
+- **Track order live** link
 - The call-the-kitchen button
 
 **Owner benefit:**
@@ -257,6 +266,14 @@ Then click **Explore the Puja menu**.
 4. **Ready**
 5. **Completed**
 
+**Show the kitchen extras:**
+
+- **Availability** tab: mark one dish sold out, then restore it. The public menu and checkout reject a sold-out dish.
+- **Print KOT**: an 80 mm kitchen ticket with items, portions, notes, payment and customer contact.
+- **Mark paid** after verifying a UPI payment (only appears when UPI is enabled).
+- **Review request** on a completed order (only works when `GOOGLE_REVIEW_URL` and the review template are configured).
+- The new-order chime and the optional browser notification.
+
 **Show the filters:**
 
 - Active
@@ -306,6 +323,38 @@ Open **Orders**.
 Point out the warning if WhatsApp is not configured:
 
 > “The order is saving, but the WhatsApp bot is not connected yet. That is the next setup step.”
+
+#### Ordering & payment
+
+Open **Ordering & payment**.
+
+**Show:**
+
+- Delivery zones, areas and fees
+- Preparation-time choices
+- Loyalty target and reward
+- UPI ID, payee name and the UPI on/off switch
+
+**Say:**
+
+> “These are the rules the checkout uses. The server reads the saved zones and recalculates the delivery fee, so the browser cannot change it. The 5-stamp / ₹50 loyalty terms are provisional until you confirm them. UPI stays off until you give me a real UPI ID and approve the payee name.”
+
+#### Analytics
+
+Open the **Dashboard** and point to the analytics cards.
+
+**Show:**
+
+- Today’s orders and revenue
+- Active orders
+- Review requests pending
+- Delivery vs pickup split
+- Top-selling dishes
+- Loyalty accounts and rewards
+
+**Say:**
+
+> “This gives you a simple daily picture without exporting anything. The numbers come from the same Neon orders the kitchen is using.”
 
 #### Staff access
 
@@ -571,6 +620,87 @@ Scroll to the footer.
 
 ---
 
+### 2.9 New customer and kitchen extras — 5 minutes
+
+Use this section when the owner has time for the newer features.
+
+#### Live tracking and reorder
+
+Open the **Track order live** link from the thank-you screen.
+
+**Show:**
+
+- The order number, status and timeline
+- The 15-second auto-refresh
+- Items, totals and pickup/delivery details
+- **Order again**
+
+**Say:**
+
+> “The customer can bookmark this page instead of calling to ask ‘where is my order?’ It shows the status but never exposes the phone number or delivery address. **Order again** adds the same items back to the basket and skips anything that is sold out.”
+
+#### Catering calculator
+
+Open `/catering`.
+
+**Do this:**
+
+1. Set guests to **50**.
+2. Choose **Mixed**.
+3. Show the estimated dish quantities and cost.
+4. Point to the disclaimer.
+
+**Say:**
+
+> “This is a planning estimate based on the live menu prices, not a fixed package. It assumes one full biryani per two guests, one full gravy per three, one full momo plate per four, and 40% vegetarian guests for a mixed menu. The final quote still comes from the kitchen.”
+
+#### Bangla switch
+
+Use the **বাংলা** switch in the header.
+
+**Show:**
+
+- Home marketing copy
+- Menu categories and menu chrome
+- Order and OTP screens
+- Tracking and catering
+- Footer and open/closed badge
+
+**Say:**
+
+> “The customer-facing interface switches to Bangla. Dish names and descriptions stay in English because they are the menu content, not interface text.”
+
+#### Installable app and offline shell
+
+Do this on the **production build**, not the development server.
+
+**Show:**
+
+- The browser’s **Install app / Add to Home screen** option, if it appears
+- The cached app shell after a reload with the network unavailable
+
+**Say:**
+
+> “On a supported phone the site can be installed like an app. The production build caches the shell so a weak connection does not show a blank page. Online ordering still needs the network and the Neon database.”
+
+#### UPI, when the owner is ready
+
+Open **Admin → Ordering & payment**.
+
+**Say:**
+
+> “UPI is deliberately off until you give me the exact UPI ID and confirm the payee name. When you do, I enable it here. The customer sees a QR and a UPI intent button, and staff mark the payment paid after checking it. Until then, every order uses pay at pickup or pay on delivery.”
+
+#### Review request
+
+Open a completed order in `/staff`.
+
+**Say:**
+
+> “After an order is completed, staff can send a review request. This stays paused until the exact Google review link and the WhatsApp review template are configured. The daily cron only asks customers who have not already been asked.”
+
+---
+
 ## 3. Closing — 1 minute
 
 Recap on your fingers:
@@ -648,6 +778,24 @@ Use this if the owner wants to see everything, or as a follow-up handout.
 | 38 | Business ad | Footer | WhatsApp 6009772116 |
 | 39 | Mobile layout | Whole site | Phone-friendly menu, cart and checkout |
 | 40 | Light theme | Whole site | Clean, readable, no dark mode |
+| 41 | Upselling | Cart | “Complete your meal” suggestions |
+| 42 | Sold-out toggle | `/staff` | Hide a dish instantly; checkout rejects it |
+| 43 | Delivery zones and fees | `/order` + admin | Area fee recalculated on the server |
+| 44 | Scheduled orders | `/order` | ASAP or a slot up to 7 days ahead |
+| 45 | Prep-time choice | `/order` | 10 / 20 / 30 / 45 minutes |
+| 46 | Loyalty card | `/order` + admin | Provisional 5 stamps → ₹50 |
+| 47 | UPI intent and QR | `/order` + admin | Off until the owner confirms a real UPI ID |
+| 48 | Public tracking | `/track/:orderId` | Status, items and timing; no contact data |
+| 49 | Reorder | `/track/:orderId` | Adds available items back to the basket |
+| 50 | Kitchen chime | `/staff` | Sound and browser notification for new orders |
+| 51 | 80 mm KOT | `/staff` | Compact kitchen ticket for a thermal printer |
+| 52 | Review booster | `/staff` + cron | WhatsApp review request after completion |
+| 53 | Catering calculator | `/catering` | Quantities and estimate from live menu prices |
+| 54 | Bangla interface | Header | Customer-facing EN / বাংলা switch |
+| 55 | PWA and offline shell | Production build | Installable app and cached shell |
+| 56 | Analytics | `/admin123` | Orders, revenue, top dishes and loyalty |
+| 57 | Ordering settings | `/admin123` | Zones, prep times, loyalty and UPI |
+| 58 | Server-side validation | APIs | Fees, totals, sold-out and OTP checks |
 
 ---
 
@@ -763,6 +911,16 @@ Use this if the owner wants to see everything, or as a follow-up handout.
 - Printable A4 menu with QR
 - Business ad in the footer
 - Mobile layout and light theme
+- Upselling suggestions and sold-out controls
+- Delivery zones, server-calculated fees, scheduling and prep-time choice
+- Loyalty card (provisional terms)
+- Public order tracking and reorder
+- Kitchen chime, 80 mm KOT and payment marking
+- Review booster code and daily cron
+- Menu-based catering calculator
+- Bangla customer interface
+- Production PWA shell and offline recovery
+- Admin analytics and ordering settings
 
 ### Needs setup before public launch
 
@@ -777,6 +935,11 @@ Use this if the owner wants to see everything, or as a follow-up handout.
 - Rotate the secrets in `.env.local`
 - Final content and photo approval from the owner
 - Confirm or replace the Home review quotes
+- Owner-confirmed UPI ID and payee name (UPI stays off until then)
+- Final loyalty target and reward terms
+- Final catering package prices, if packages will be sold
+- Exact `GOOGLE_REVIEW_URL` and, if used, the approved review template
+- Set `CRON_SECRET` and the Vercel Cron schedule for the review booster
 
 ---
 
@@ -789,6 +952,10 @@ Use this if the owner wants to see everything, or as a follow-up handout.
 - [ ] Do not delete real orders or real customer data.
 - [ ] Note the owner’s feedback and any menu corrections.
 - [ ] Ask the owner to confirm the Home review quotes are real Google reviews; replace them if not.
+- [ ] Ask for the exact UPI ID and payee name; keep UPI disabled until then.
+- [ ] Confirm the loyalty target and reward, or leave the provisional 5-stamp / ₹50 terms clearly marked.
+- [ ] Confirm whether catering is sold as packages or only as a menu-based estimate.
+- [ ] Ask for the exact Google review link and whether the review template is approved.
 - [ ] Agree who will complete the WhatsApp Business verification.
 - [ ] Agree the production domain and launch date.
 - [ ] Change the demo passwords before giving anyone else access.
@@ -801,10 +968,11 @@ If the owner is busy, show only this:
 
 1. **Home** — “This is the new site: menu, rating, address, hours, order buttons.”
 2. **Menu** — search “biryani”, add a dish to the cart.
-3. **Order** — verify the test number, place a pickup order.
-4. **Staff** — show the order, change it to **Preparing**.
-5. **Admin** — show **Menu & photos**, change nothing, point to **Save changes / Live on Neon**.
-6. **Print** — show the A4 QR menu.
+3. **Order** — verify the test number, place a pickup order, show the **Track order live** link.
+4. **Staff** — show the order, change it to **Preparing**, show **Print KOT**.
+5. **Admin** — show **Ordering & payment**, then **Menu & photos**, change nothing, point to **Save changes / Live on Neon**.
+6. **Catering** — set 50 guests and show the estimate disclaimer.
+7. **Print** — show the A4 QR menu.
 
 Close with:
 
@@ -816,6 +984,7 @@ Close with:
 
 ```text
 START:  http://localhost:5199
+CATERING: http://localhost:5199/catering
 STAFF:  http://localhost:5199/staff
 ADMIN:  http://localhost:5199/admin123
 PRINT:  http://localhost:5199/menu-print
@@ -824,14 +993,20 @@ HEALTH: http://localhost:5199/api/orders?health=1
 DEMO FLOW
 Home → Menu → add Chicken Dum Biriyani (Full) + Steam Momo (Full)
 → Order → test phone → OTP → name “Owner Demo” → Delivery
-→ demo address → note “Less spicy” → Place order
+→ demo address → delivery area → ASAP/prep time → note “Less spicy”
+→ Place order → show loyalty card + Track order live
+→ Track → timeline → Order again
 → Staff → show order → New → Confirmed → Preparing
+→ Staff → Availability (sold out/restore) → Print KOT
+→ Admin → Ordering & payment → Dashboard analytics
 → Admin → Menu & photos → Save changes / Live on Neon
-→ Print menu → QR → footer business ad
+→ Catering → 50 guests, mixed → estimate
+→ Print menu → QR → footer business ad → বাংলা switch
 
 REMEMBER
 - Show customer side first.
 - Do not promise live WhatsApp today.
+- UPI stays off until the owner confirms a real UPI ID.
 - Do not click Reset everything.
 - Do not show .env.local or customer phone numbers.
 - Mark the demo order Cancelled/Completed after.

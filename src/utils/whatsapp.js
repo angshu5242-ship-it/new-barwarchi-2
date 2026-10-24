@@ -29,16 +29,41 @@ export function buildOrderMessage(cart, info) {
   ].join('\n');
 }
 
-export function buildCheckoutMessage({ cart, customer, orderType, notes }, info) {
+export function buildCheckoutMessage(
+  {
+    cart,
+    customer,
+    orderType,
+    notes,
+    deliveryZone,
+    deliveryFee = 0,
+    discount = 0,
+    total: providedTotal,
+    scheduledFor,
+    prepMinutes,
+    paymentMethod,
+  },
+  info,
+) {
   const lines = cart.map((item) => {
     const amount = parsePrice(item.price) * item.quantity;
     return `• ${item.quantity} × ${item.name}${item.portion ? ` (${item.portion})` : ''} — ${formatINR(amount)}`;
   });
-  const total = cart.reduce((sum, item) => sum + parsePrice(item.price) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + parsePrice(item.price) * item.quantity, 0);
+  const total = Number.isFinite(Number(providedTotal)) ? Number(providedTotal) : subtotal;
   const deliveryLine =
     orderType === 'delivery'
-      ? `Delivery address: ${customer.address || '—'}`
+      ? `Delivery address: ${customer.address || '—'}${deliveryZone ? ` (${deliveryZone})` : ''}`
       : 'Pickup from College Square, Belonia';
+  const timingLine = scheduledFor
+    ? `Scheduled for: ${new Date(scheduledFor).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })}`
+    : prepMinutes
+      ? `Preparation time: about ${prepMinutes} minutes`
+      : '';
 
   return [
     `🛎️ NEW ORDER — ${info.name}`,
@@ -46,14 +71,21 @@ export function buildCheckoutMessage({ cart, customer, orderType, notes }, info)
     `Name: ${customer.name || '—'}`,
     `Phone: ${customer.phone ? `+91 ${customer.phone}` : '—'}`,
     deliveryLine,
+    timingLine,
+    paymentMethod === 'upi' ? 'Payment: UPI (verify before handover)' : 'Payment: pay at pickup / delivery',
     '',
     ...lines,
     '',
+    `Subtotal: ${formatINR(subtotal)}`,
+    deliveryFee > 0 ? `Delivery fee: ${formatINR(deliveryFee)}` : '',
+    discount > 0 ? `Loyalty reward: −${formatINR(discount)}` : '',
     `Total: ${formatINR(total)}`,
     notes ? `Notes: ${notes}` : '',
     '',
     'Please confirm my order on WhatsApp.',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function buildReservationMessage({ name, phone, date, time, guests, notes }, info) {

@@ -35,6 +35,30 @@ export function updateStaffOrderStatus(orderId, status, token) {
   });
 }
 
+export function setStaffItemAvailability(itemId, soldOut, token) {
+  return apiRequest('/api/orders', {
+    method: 'PATCH',
+    headers: bearer(token),
+    body: JSON.stringify({ action: 'availability', itemId, soldOut }),
+  });
+}
+
+export function updateStaffPaymentStatus(orderId, paymentStatus, token) {
+  return apiRequest('/api/orders', {
+    method: 'PATCH',
+    headers: bearer(token),
+    body: JSON.stringify({ action: 'payment', id: orderId, paymentStatus }),
+  });
+}
+
+export function sendStaffReviewRequest(orderId, token) {
+  return apiRequest('/api/orders', {
+    method: 'POST',
+    headers: bearer(token),
+    body: JSON.stringify({ action: 'review-request', id: orderId }),
+  });
+}
+
 export function listStaff(adminPassword) {
   return apiRequest(`${STAFF_PATH}?action=list&ts=${Date.now()}`, {
     headers: { 'x-admin-password': adminPassword },

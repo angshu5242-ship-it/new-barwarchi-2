@@ -1,4 +1,5 @@
-import { foodImages } from './images';
+import { foodImages } from './images.js';
+import { defaultDeliveryZones } from './delivery.js';
 
 export const restaurantInfo = {
   name: 'New Bawarchi 2',
@@ -21,12 +22,18 @@ export const restaurantInfo = {
   since: '2023',
   mapsEmbedUrl: 'https://www.google.com/maps?q=6FV9%2B9Q+Belonia,+Tripura+799155&output=embed',
   directionsUrl: 'https://www.google.com/maps/dir/?api=1&destination=6FV9%2B9Q+Belonia,+Tripura+799155',
-  googleListingUrl: 'https://www.google.com/maps/place/Restaurant+New+Bawarchi+2/data=!4m2!3m1!1s0x0:0xed73a0c118858ff',
+  googleListingUrl:
+    'https://www.google.com/maps/place/Restaurant+New+Bawarchi+2/@23.2434685,91.4694645,17z/data=!3m1!4b1!4m6!3m5!1s0x375373ec84739927:0xed73a0c118858ff!8m2!3d23.2434685!4d91.4694645!16s%2Fg%2F11wc2vy1m_',
   instagram: 'https://www.instagram.com/',
   facebook: 'https://www.facebook.com/',
   announcement:
     'Bawarchi Puja Special · Open daily 8 AM – 10 PM · Call +91 93669 86853 / +91 96122 81939',
-  deliveryNote: 'Home delivery around Belonia. Delivery charge and timing are confirmed on WhatsApp.',
+  deliveryNote: 'Home delivery around Belonia. The delivery area fee is shown at checkout; timing is confirmed on WhatsApp.',
+  deliveryZones: defaultDeliveryZones,
+  // Leave blank until the owner confirms the restaurant's UPI ID. The order
+  // success screen only shows the UPI button when this is filled in.
+  upiId: '',
+  upiName: 'New Bawarchi 2',
 };
 
 export const websiteStudio = {

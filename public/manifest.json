@@ -1,12 +1,17 @@
 {
   "name": "New Bawarchi 2 - Belonia's Favorite Restaurant",
   "short_name": "New Bawarchi 2",
-  "description": "Authentic Bengali & Indian cuisine in Belonia, South Tripura. Famous for biryani, rolls, fish curry & more.",
+  "description": "Bawarchi Puja Special at New Bawarchi 2, Belonia. Biryani, rolls, momos, chowmein, gravies and combos for pickup or delivery.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#fafafa",
-  "theme_color": "#eab308",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#fbf8f1",
+  "theme_color": "#b06f1f",
   "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -33,8 +38,8 @@
     {
       "name": "Order Online",
       "short_name": "Order",
-      "description": "Place a takeaway order",
-      "url": "/contact",
+      "description": "Place a takeaway or delivery order",
+      "url": "/order",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

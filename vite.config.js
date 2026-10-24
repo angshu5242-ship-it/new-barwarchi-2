@@ -39,7 +39,8 @@ function localApi() {
       const isSite = req.url?.startsWith('/api/site')
       const isStylist = req.url?.startsWith('/api/menu-stylist')
       const isStaff = req.url?.startsWith('/api/staff')
-      if (!isOrders && !isAuth && !isSite && !isStylist && !isStaff) return next()
+      const isReviewCron = req.url?.startsWith('/api/review-cron')
+      if (!isOrders && !isAuth && !isSite && !isStylist && !isStaff && !isReviewCron) return next()
       try {
         const url = new URL(req.url, 'http://localhost')
         const query = Object.fromEntries(url.searchParams.entries())
@@ -58,7 +59,7 @@ function localApi() {
                 : handleOrdersRequest
         const result = await handler({
           method: req.method,
-          query,
+          query: isReviewCron ? { ...query, reviewCron: '1' } : query,
           headers: req.headers,
           body,
         })
@@ -93,7 +94,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), localApi()],
-    base: './',
+    base: '/',
     server: {
       host: true,
       port: 5199,

@@ -7,7 +7,8 @@ import MenuStyleStudio from '../components/MenuStyleStudio';
 import StaffManager from '../components/StaffManager';
 import { compressImage, formatBytes } from '../utils/image';
 import { averagePrice, formatINR } from '../utils/price';
-import { getAdminOrders, patchOrderStatus } from '../utils/orderApi';
+import { getAdminOrders, getAnalytics, patchOrderStatus } from '../utils/orderApi';
+import { saveSiteConfig } from '../utils/siteApi';
 
 const ADMIN_PASSWORD = 'nb2admin2024';
 const AUTH_KEY = 'nb2_admin_auth';
@@ -36,6 +37,7 @@ const tabs = [
   { id: 'dashboard', label: 'Overview', icon: '▦' },
   { id: 'orders', label: 'Orders', icon: '🧾' },
   { id: 'staff', label: 'Staff access', icon: '👥' },
+  { id: 'ordering', label: 'Ordering & payment', icon: '💳' },
   { id: 'menu', label: 'Menu & photos', icon: '🍛' },
   { id: 'style', label: 'Menu style', icon: '🎨' },
   { id: 'gallery', label: 'Gallery', icon: '🖼️' },
@@ -402,6 +404,8 @@ export default function Admin() {
     saveAll,
     resetAll,
     saveMenuStyle,
+    siteConfig,
+    refreshSiteConfig,
   } = useSiteData();
 
   const [authed, setAuthed] = useState(readAuth);
@@ -421,6 +425,13 @@ export default function Admin() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
   const [ordersService, setOrdersService] = useState(null);
+  const [draftConfig, setDraftConfig] = useState(() => clone(siteConfig));
+  const [configDirty, setConfigDirty] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+  const [analyticsDays, setAnalyticsDays] = useState(7);
   const galleryInputRef = useRef(null);
   const importInputRef = useRef(null);
 
@@ -454,6 +465,10 @@ export default function Admin() {
     [draftCategories],
   );
   const avgPrice = useMemo(() => averagePrice(allDraftItems), [allDraftItems]);
+  const analyticsMaxRevenue = useMemo(
+    () => Math.max(1, ...(analytics?.series || []).map((day) => Number(day.revenue) || 0)),
+    [analytics],
+  );
   const photoCount =
     itemPhotoCount +
     draftGallery.filter((image) => image.src).length +
@@ -477,6 +492,10 @@ export default function Admin() {
       setDraftInfo(clone(restaurantInfo));
     }
   }, [categories, galleryImages, heroImages, restaurantInfo, dirty]);
+
+  useEffect(() => {
+    if (!configDirty) setDraftConfig(clone(siteConfig));
+  }, [siteConfig, configDirty]);
 
   useEffect(() => {
     if (!dirty) return undefined;
@@ -514,11 +533,92 @@ export default function Admin() {
     setOrders(result.data?.orders || []);
   };
 
+  const loadAnalytics = async (days = analyticsDays) => {
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    const result = await getAnalytics(days, ADMIN_PASSWORD);
+    setAnalyticsLoading(false);
+    if (!result.ok) {
+      setAnalyticsError(result.error || 'Could not load the kitchen analytics.');
+      return;
+    }
+    setAnalytics(result.data?.analytics || null);
+  };
+
   useEffect(() => {
     if (authed && activeTab === 'orders') loadOrders();
     // loadOrders is intentionally recreated with the current admin session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed, activeTab]);
+
+  useEffect(() => {
+    if (authed && activeTab === 'dashboard') loadAnalytics(analyticsDays);
+    // loadAnalytics is intentionally recreated with the current admin session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, activeTab, analyticsDays]);
+
+  const handleSaveConfig = async () => {
+    if (configSaving) return;
+    setConfigSaving(true);
+    const result = await saveSiteConfig(draftConfig, ADMIN_PASSWORD);
+    setConfigSaving(false);
+    if (!result.ok) {
+      showNotice('error', result.error || 'Could not save ordering settings.');
+      return;
+    }
+    setConfigDirty(false);
+    await refreshSiteConfig();
+    showNotice(
+      'success',
+      result.data?.persisted
+        ? 'Ordering, delivery, loyalty and UPI settings are live.'
+        : 'Saved on this device. Neon is not connected, so the settings are not online yet.',
+    );
+  };
+
+  const markConfigDirty = () => setConfigDirty(true);
+
+  const updateConfig = (patch) => {
+    setDraftConfig((current) => ({ ...current, ...patch }));
+    markConfigDirty();
+  };
+
+  const updateZone = (index, patch) => {
+    setDraftConfig((current) => ({
+      ...current,
+      deliveryZones: current.deliveryZones.map((zone, zoneIndex) =>
+        zoneIndex === index ? { ...zone, ...patch } : zone,
+      ),
+    }));
+    markConfigDirty();
+  };
+
+  const addZone = () => {
+    setDraftConfig((current) => ({
+      ...current,
+      deliveryZones: [
+        ...current.deliveryZones,
+        {
+          id: `zone-${Date.now().toString(36)}`,
+          name: 'New delivery area',
+          areas: '',
+          fee: 0,
+        },
+      ],
+    }));
+    markConfigDirty();
+  };
+
+  const removeZone = (index) => {
+    setDraftConfig((current) => ({
+      ...current,
+      deliveryZones:
+        current.deliveryZones.length > 1
+          ? current.deliveryZones.filter((_, zoneIndex) => zoneIndex !== index)
+          : current.deliveryZones,
+    }));
+    markConfigDirty();
+  };
 
   const changeOrderStatus = async (orderId, status) => {
     const result = await patchOrderStatus(orderId, status, ADMIN_PASSWORD);
@@ -1153,6 +1253,134 @@ export default function Admin() {
                   </p>
                 </div>
 
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                  <h2 className="font-display text-xl font-semibold text-gray-900">Today in the kitchen</h2>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={analyticsDays}
+                      onChange={(event) => setAnalyticsDays(Number(event.target.value))}
+                      className="input-field w-auto py-2 text-xs"
+                    >
+                      <option value={7}>Last 7 days</option>
+                      <option value={14}>Last 14 days</option>
+                      <option value={30}>Last 30 days</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => loadAnalytics(analyticsDays)}
+                      disabled={analyticsLoading}
+                      className="btn-secondary px-3 py-2 text-xs"
+                    >
+                      {analyticsLoading ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
+
+                {analyticsError && (
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                    {analyticsError}
+                  </p>
+                )}
+
+                {analytics && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                      <StatCard
+                        label="Orders today"
+                        value={analytics.today.orders}
+                        detail={`${analytics.today.deliveryOrders} delivery · ${analytics.today.pickupOrders} pickup`}
+                        icon="🧾"
+                      />
+                      <StatCard
+                        label="Revenue today"
+                        value={formatINR(analytics.today.revenue)}
+                        detail={`Average order ${formatINR(analytics.today.average)}`}
+                        icon="₹"
+                      />
+                      <StatCard
+                        label="Active now"
+                        value={analytics.activeOrders}
+                        detail="Orders not completed or cancelled"
+                        icon="🔥"
+                      />
+                      <StatCard
+                        label="Review requests"
+                        value={analytics.reviewPending}
+                        detail="Completed orders waiting for a review ask"
+                        icon="⭐"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+                      <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h2 className="font-display text-xl font-semibold text-gray-900">Revenue trend</h2>
+                            <p className="text-xs text-gray-500">Indicative order value, excluding cancelled orders.</p>
+                          </div>
+                        </div>
+                        <div className="mt-5 flex h-40 items-end gap-2">
+                          {analytics.series.map((day) => (
+                            <div key={day.day} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                              <span className="text-[9px] font-semibold text-gray-400">
+                                {day.revenue > 0 ? formatINR(day.revenue) : ''}
+                              </span>
+                              <div
+                                className="w-full rounded-t-md bg-brand-500/80"
+                                style={{
+                                  height: `${Math.max(3, Math.round((day.revenue / analyticsMaxRevenue) * 100))}%`,
+                                }}
+                                title={`${day.day}: ${formatINR(day.revenue)} · ${day.orders} orders`}
+                              />
+                              <span className="text-[9px] font-semibold text-gray-500">
+                                {new Date(`${day.day}T00:00:00`).toLocaleDateString('en-IN', {
+                                  weekday: 'short',
+                                })}
+                              </span>
+                              <span className="text-[9px] text-gray-400">{day.orders}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                        <h2 className="font-display text-xl font-semibold text-gray-900">Top dishes</h2>
+                        <p className="text-xs text-gray-500">By quantity in the selected period.</p>
+                        {analytics.topItems.length ? (
+                          <ol className="mt-4 space-y-2">
+                            {analytics.topItems.map((item, index) => (
+                              <li key={item.name} className="flex items-center gap-3">
+                                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-800">
+                                  {index + 1}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{item.name}</span>
+                                <span className="text-xs font-bold text-gray-900">{item.quantity}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p className="mt-4 text-sm text-gray-500">No completed order data yet.</p>
+                        )}
+                      </section>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">Loyalty members</p>
+                        <p className="mt-1 font-display text-3xl font-semibold text-brand-900">{analytics.loyalty.accounts}</p>
+                      </div>
+                      <div className="rounded-2xl border border-surface-200 bg-white p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">Rewards ready</p>
+                        <p className="mt-1 font-display text-3xl font-semibold text-gray-900">{analytics.loyalty.rewardsAvailable}</p>
+                      </div>
+                      <div className="rounded-2xl border border-surface-200 bg-white p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">Rewards redeemed</p>
+                        <p className="mt-1 font-display text-3xl font-semibold text-gray-900">{analytics.loyalty.rewardsRedeemed}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                   <StatCard label="Dishes" value={itemCount} detail={`${draftCategories.length} menu sections`} icon="🍛" />
                   <StatCard label="Food photos" value={photoCount} detail={`${coverage}% of dishes have a photo`} icon="📷" />
@@ -1373,6 +1601,21 @@ export default function Admin() {
                               <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-800">
                                 {order.orderType === 'delivery' ? 'Delivery' : 'Pickup'}
                               </span>
+                              {order.scheduledFor && (
+                                <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-800">
+                                  Scheduled
+                                </span>
+                              )}
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                                  order.paymentStatus === 'paid'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {order.paymentMethod === 'upi' ? 'UPI' : 'Pay later'} ·{' '}
+                                {order.paymentStatus || 'pending'}
+                              </span>
                               {order.whatsappSent ? (
                                 <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
                                   WhatsApp sent
@@ -1417,6 +1660,27 @@ export default function Admin() {
                             ) : (
                               <p className="mt-1 text-xs text-gray-500">Pickup from College Square, Belonia</p>
                             )}
+                            {order.orderType === 'delivery' && (
+                              <p className="mt-1 text-[11px] font-semibold text-gray-500">
+                                {order.deliveryZone || 'Area not set'} ·{' '}
+                                {Number(order.deliveryFee) > 0
+                                  ? `fee ${formatINR(order.deliveryFee)}`
+                                  : 'free delivery'}
+                              </p>
+                            )}
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              {order.scheduledFor
+                                ? `Scheduled for ${new Date(order.scheduledFor).toLocaleString('en-IN', {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short',
+                                  })}`
+                                : `Preparation: about ${order.prepMinutes || 20} minutes`}
+                            </p>
+                            {order.reviewRequestedAt && (
+                              <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                                Review requested
+                              </p>
+                            )}
                             {order.notes && (
                               <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
                                 Note: {order.notes}
@@ -1455,9 +1719,27 @@ export default function Admin() {
                                 </li>
                               ))}
                             </ul>
-                            <div className="mt-2 flex justify-between border-t border-dashed border-surface-300 pt-2 text-sm font-bold text-gray-900">
-                              <span>Total</span>
-                              <span>{formatINR(order.subtotal)}</span>
+                            <div className="mt-2 space-y-1 border-t border-dashed border-surface-300 pt-2 text-[11px] text-gray-500">
+                              <div className="flex justify-between">
+                                <span>Subtotal</span>
+                                <span>{formatINR(order.subtotal)}</span>
+                              </div>
+                              {Number(order.deliveryFee) > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Delivery fee</span>
+                                  <span>{formatINR(order.deliveryFee)}</span>
+                                </div>
+                              )}
+                              {Number(order.discount) > 0 && (
+                                <div className="flex justify-between text-emerald-700">
+                                  <span>Loyalty reward</span>
+                                  <span>−{formatINR(order.discount)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between border-t border-surface-200 pt-1 text-sm font-bold text-gray-900">
+                                <span>Total</span>
+                                <span>{formatINR(order.total ?? order.subtotal)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1470,6 +1752,384 @@ export default function Admin() {
 
             {activeTab === 'staff' && (
               <StaffManager adminPassword={ADMIN_PASSWORD} onNotice={showNotice} />
+            )}
+
+            {activeTab === 'ordering' && (
+              <div className="space-y-5">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">
+                      Ordering & payment
+                    </p>
+                    <h1 className="mt-1 font-display text-3xl font-semibold text-gray-900">
+                      Checkout, delivery and loyalty
+                    </h1>
+                    <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                      These settings are published to the public site and validated again on the
+                      server for every order. Nothing here is stored only in this browser.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    {configDirty && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800">
+                        Unsaved changes
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSaveConfig}
+                      disabled={configSaving || !configDirty}
+                      className="btn-primary px-4 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {configSaving ? 'Saving…' : 'Save settings'}
+                    </button>
+                  </div>
+                </div>
+
+                <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold text-gray-900">
+                        UPI payment
+                      </h2>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Show a UPI QR and intent link after the order is placed. The site never
+                        collects card or bank details.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draftConfig.payment.upiEnabled)}
+                        onChange={(event) =>
+                          updateConfig({
+                            payment: {
+                              ...draftConfig.payment,
+                              upiEnabled: event.target.checked,
+                            },
+                          })
+                        }
+                        className="h-4 w-4 rounded border-surface-300 text-brand-600"
+                      />
+                      Enable UPI on checkout
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="upi-id" className="label">
+                        UPI ID (VPA)
+                      </label>
+                      <input
+                        id="upi-id"
+                        value={draftConfig.payment.upiId}
+                        onChange={(event) =>
+                          updateConfig({
+                            payment: {
+                              ...draftConfig.payment,
+                              upiId: event.target.value,
+                            },
+                          })
+                        }
+                        placeholder="restaurant@upi"
+                        className="input-field mt-1 font-mono"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="upi-name" className="label">
+                        Payee name shown in UPI apps
+                      </label>
+                      <input
+                        id="upi-name"
+                        value={draftConfig.payment.upiName}
+                        onChange={(event) =>
+                          updateConfig({
+                            payment: {
+                              ...draftConfig.payment,
+                              upiName: event.target.value,
+                            },
+                          })
+                        }
+                        placeholder="New Bawarchi 2"
+                        className="input-field mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {draftConfig.payment.upiEnabled &&
+                    !/^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/.test(
+                      String(draftConfig.payment.upiId || '').trim(),
+                    ) && (
+                      <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+                        A valid UPI ID is required. UPI will stay disabled on the public site until
+                        one is saved.
+                      </p>
+                    )}
+                  <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+                    UPI payments are confirmed manually by staff before an order is marked paid.
+                    Keep UPI disabled until the kitchen&apos;s real ID is ready.
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold text-gray-900">
+                        Delivery areas and fees
+                      </h2>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Customers choose one area at checkout. The server recalculates the fee from
+                        this list before accepting the order.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addZone}
+                      disabled={draftConfig.deliveryZones.length >= 12}
+                      className="btn-secondary px-3 py-2 text-xs disabled:opacity-50"
+                    >
+                      + Add area
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {draftConfig.deliveryZones.map((zone, index) => (
+                      <div
+                        key={zone.id || index}
+                        className="rounded-xl border border-surface-200 bg-surface-50 p-3"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-[1fr_1.2fr_110px_auto]">
+                          <div>
+                            <label htmlFor={`zone-name-${index}`} className="label text-[10px]">
+                              Area name
+                            </label>
+                            <input
+                              id={`zone-name-${index}`}
+                              value={zone.name}
+                              onChange={(event) => updateZone(index, { name: event.target.value })}
+                              className="input-field mt-1 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor={`zone-areas-${index}`} className="label text-[10px]">
+                              Landmarks covered
+                            </label>
+                            <input
+                              id={`zone-areas-${index}`}
+                              value={zone.areas}
+                              onChange={(event) => updateZone(index, { areas: event.target.value })}
+                              className="input-field mt-1 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor={`zone-fee-${index}`} className="label text-[10px]">
+                              Fee (₹)
+                            </label>
+                            <input
+                              id={`zone-fee-${index}`}
+                              type="number"
+                              min={0}
+                              max={200}
+                              step={5}
+                              value={zone.fee}
+                              onChange={(event) =>
+                                updateZone(index, { fee: Number(event.target.value) || 0 })
+                              }
+                              className="input-field mt-1 py-2 text-sm"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeZone(index)}
+                            disabled={draftConfig.deliveryZones.length <= 1}
+                            className="self-end rounded-lg border border-rose-200 px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={`Remove ${zone.name}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] text-gray-500">
+                    Use ₹0 for free delivery within an area. Areas outside this list are rejected at
+                    checkout.
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold text-gray-900">
+                        Loyalty card
+                      </h2>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Customers collect one stamp on each completed online order and can redeem a
+                        reward on a later order.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draftConfig.loyalty.enabled)}
+                        onChange={(event) =>
+                          updateConfig({
+                            loyalty: {
+                              ...draftConfig.loyalty,
+                              enabled: event.target.checked,
+                            },
+                          })
+                        }
+                        className="h-4 w-4 rounded border-surface-300 text-brand-600"
+                      />
+                      Loyalty enabled
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="loyalty-target" className="label">
+                        Stamps needed for a reward
+                      </label>
+                      <input
+                        id="loyalty-target"
+                        type="number"
+                        min={2}
+                        max={20}
+                        value={draftConfig.loyalty.target}
+                        onChange={(event) =>
+                          updateConfig({
+                            loyalty: {
+                              ...draftConfig.loyalty,
+                              target: Number(event.target.value) || 5,
+                            },
+                          })
+                        }
+                        className="input-field mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="loyalty-reward" className="label">
+                        Reward value (₹)
+                      </label>
+                      <input
+                        id="loyalty-reward"
+                        type="number"
+                        min={10}
+                        max={1000}
+                        step={10}
+                        value={draftConfig.loyalty.reward}
+                        onChange={(event) =>
+                          updateConfig({
+                            loyalty: {
+                              ...draftConfig.loyalty,
+                              reward: Number(event.target.value) || 50,
+                            },
+                          })
+                        }
+                        className="input-field mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="loyalty-label" className="label">
+                        Short reward label
+                      </label>
+                      <input
+                        id="loyalty-label"
+                        value={draftConfig.loyalty.rewardLabel}
+                        onChange={(event) =>
+                          updateConfig({
+                            loyalty: {
+                              ...draftConfig.loyalty,
+                              rewardLabel: event.target.value,
+                            },
+                          })
+                        }
+                        className="input-field mt-1"
+                        placeholder="₹50 off"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="loyalty-description" className="label">
+                        Customer explanation
+                      </label>
+                      <input
+                        id="loyalty-description"
+                        value={draftConfig.loyalty.description}
+                        onChange={(event) =>
+                          updateConfig({
+                            loyalty: {
+                              ...draftConfig.loyalty,
+                              description: event.target.value,
+                            },
+                          })
+                        }
+                        className="input-field mt-1"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900">
+                    The current 5-stamp / ₹50 terms are provisional and must be confirmed by the
+                    owner before they are presented as final.
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-soft">
+                  <h2 className="font-display text-xl font-semibold text-gray-900">
+                    Preparation-time choices
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Customers can choose an expected preparation time. Enter up to six options in
+                    minutes, separated by commas.
+                  </p>
+                  <div className="mt-4">
+                    <label htmlFor="prep-times" className="label">
+                      Options (minutes)
+                    </label>
+                    <input
+                      id="prep-times"
+                      value={draftConfig.prepTimes.join(', ')}
+                      onChange={(event) =>
+                        updateConfig({
+                          prepTimes: event.target.value
+                            .split(',')
+                            .map((entry) => Number(entry.trim()))
+                            .filter((entry) => Number.isFinite(entry) && entry > 0),
+                        })
+                      }
+                      placeholder="10, 20, 30, 45"
+                      className="input-field mt-1"
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {draftConfig.prepTimes.map((minutes) => (
+                      <span
+                        key={minutes}
+                        className="rounded-full bg-surface-100 px-3 py-1 text-xs font-semibold text-gray-700"
+                      >
+                        {minutes} min
+                      </span>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-200 bg-white p-4 shadow-soft">
+                  <p className="text-xs text-gray-500">
+                    {configDirty
+                      ? 'Save to publish these checkout settings to every visitor.'
+                      : 'All checkout settings are saved.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveConfig}
+                    disabled={configSaving || !configDirty}
+                    className="btn-primary px-5 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {configSaving ? 'Saving…' : 'Save settings'}
+                  </button>
+                </div>
+              </div>
             )}
 
             {activeTab === 'menu' && (

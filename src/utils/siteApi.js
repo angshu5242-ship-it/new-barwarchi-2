@@ -23,6 +23,14 @@ export function saveSiteContent(siteContent, password) {
   });
 }
 
+export function saveSiteConfig(config, password) {
+  return apiRequest(SITE_PATH, {
+    method: 'POST',
+    headers: { 'x-admin-password': password },
+    body: JSON.stringify({ config }),
+  });
+}
+
 export function generateMenuStyle(prompt, currentStyle, password) {
   return apiRequest(STYLIST_PATH, {
     method: 'POST',

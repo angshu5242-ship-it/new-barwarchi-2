@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSiteData } from '../context/SiteDataContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useCart } from '../components/Header';
 import FoodImage from '../components/FoodImage';
 import OpenNowBadge from '../components/OpenNowBadge';
@@ -38,6 +39,7 @@ function Stars({ rating = 5, className = '' }) {
 export default function Home() {
   const navigate = useNavigate();
   const { restaurantInfo, categories, popularItems, activeHero, galleryImages, allItems } = useSiteData();
+  const { t } = useLanguage();
   const { addToCart } = useCart();
   const [reviewIndex, setReviewIndex] = useState(0);
 
@@ -115,7 +117,11 @@ export default function Home() {
                 <OpenNowBadge />
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800">
                   <Stars rating={Number(restaurantInfo.rating)} className="text-brand-500" />
-                  {restaurantInfo.rating} · {restaurantInfo.reviewCount} reviews
+                  {restaurantInfo.rating} ·{' '}
+                  {t('home.reviewsCount', '{count} reviews').replace(
+                    '{count}',
+                    restaurantInfo.reviewCount,
+                  )}
                 </span>
               </div>
 
@@ -123,37 +129,47 @@ export default function Home() {
                 {restaurantInfo.menuTitle} · College Square
               </p>
               <h1 className="mt-3 max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-gray-900 sm:text-5xl lg:text-6xl">
-                Puja special flavours,
-                <span className="block text-brand-700">good food, great mood.</span>
+                {t('home.heroLine1', 'Puja special flavours,')}
+                <span className="block text-brand-700">
+                  {t('home.heroLine2', 'good food, great mood.')}
+                </span>
               </h1>
               <p className="mt-5 max-w-xl text-base leading-relaxed text-gray-600 md:text-lg">
-                Slow-cooked dum biryani, flaky rolls, steaming momos and the kind of gravies that
-                bring everyone back for one more paratha. Order for pickup or delivery from College Square.
+                {t(
+                  'home.heroCopy',
+                  'Slow-cooked dum biryani, flaky rolls, steaming momos and the kind of gravies that bring everyone back for one more paratha. Order for pickup or delivery from College Square.',
+                )}
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link to="/menu" className="btn-primary">
-                  Explore the Puja menu
+                  {t('home.explorePuja', 'Explore the Puja menu')}
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
                 </Link>
                 <Link to="/order" className="btn-secondary">
-                  Start an order
+                  {t('home.startOrder', 'Start an order')}
                 </Link>
               </div>
 
               <dl className="mt-9 grid max-w-lg grid-cols-3 gap-4 border-t border-brand-200/70 pt-5">
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Dishes</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    {t('home.dishes', 'Dishes')}
+                  </dt>
                   <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{totalDishes}+</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Google</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    {t('home.google', 'Google')}
+                  </dt>
                   <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{restaurantInfo.rating}★</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Serving since</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    {t('home.servingSince', 'Serving since')}
+                  </dt>
                   <dd className="mt-0.5 font-display text-2xl font-semibold text-gray-900">{restaurantInfo.since}</dd>
                 </div>
               </dl>
@@ -170,13 +186,14 @@ export default function Home() {
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent p-5 pt-20 text-white">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-200">
-                      {activeHero?.caption || 'From our kitchen'}
+                      {activeHero?.caption || t('home.fromKitchen', 'From our kitchen')}
                     </p>
                     <p className="mt-1 font-display text-2xl font-semibold">
                       {heroDish?.name || 'Chicken Dum Biriyani'}
                     </p>
                     <p className="mt-1 text-sm text-white/85">
-                      {heroDish?.price || 'From ₹120'} · made fresh daily
+                      {heroDish?.price || 'From ₹120'} ·{' '}
+                      {t('home.madeFresh', 'made fresh daily')}
                     </p>
                   </div>
                 </div>
@@ -202,8 +219,12 @@ export default function Home() {
               <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-2xl border border-brand-200 bg-white px-4 py-3 shadow-medium sm:-left-6">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-lg">⏰</span>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">Kitchen hours</p>
-                  <p className="text-sm font-semibold text-gray-900">8 AM – 10 PM daily</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">
+                    {t('home.kitchenHours', 'Kitchen hours')}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {t('home.hoursDaily', '8 AM – 10 PM daily')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -216,10 +237,26 @@ export default function Home() {
         <div className="section-container">
           <div className="grid grid-cols-2 divide-x divide-surface-200 md:grid-cols-4">
             {[
-              { icon: '🍽️', title: 'Dine in', copy: 'Cosy, casual seating' },
-              { icon: '🥡', title: 'Takeaway', copy: 'Packed fresh, ready fast' },
-              { icon: '💳', title: 'Easy payment', copy: 'Cash, UPI & cards' },
-              { icon: '👨‍👩‍👧', title: 'Family friendly', copy: 'Veg & non-veg menus' },
+              {
+                icon: '🍽️',
+                title: t('home.dineIn', 'Dine in'),
+                copy: t('home.dineInCopy', 'Cosy, casual seating'),
+              },
+              {
+                icon: '🥡',
+                title: t('home.takeaway', 'Takeaway'),
+                copy: t('home.takeawayCopy', 'Packed fresh, ready fast'),
+              },
+              {
+                icon: '💳',
+                title: t('home.payment', 'Easy payment'),
+                copy: t('home.paymentCopy', 'Cash, UPI & cards'),
+              },
+              {
+                icon: '👨‍👩‍👧',
+                title: t('home.family', 'Family friendly'),
+                copy: t('home.familyCopy', 'Veg & non-veg menus'),
+              },
             ].map((item) => (
               <div key={item.title} className="flex items-center gap-3 px-2 py-5 sm:px-5">
                 <span className="text-2xl" aria-hidden="true">{item.icon}</span>
@@ -238,16 +275,21 @@ export default function Home() {
         <div className="section-container">
           <div className="mb-9 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Ordered again and again</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+                {t('home.popularEyebrow', 'Ordered again and again')}
+              </p>
               <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-                The ones people come back for
+                {t('home.popularTitle', 'The ones people come back for')}
               </h2>
               <p className="mt-2 max-w-2xl text-gray-600">
-                If it’s your first time, start here. These are the plates that leave the kitchen most often.
+                {t(
+                  'home.popularCopy',
+                  'If it’s your first time, start here. These are the plates that leave the kitchen most often.',
+                )}
               </p>
             </div>
             <Link to="/menu" className="btn-secondary self-start md:self-auto">
-              See all {totalDishes} dishes
+              {t('home.seeAll', 'See all {count} dishes').replace('{count}', totalDishes)}
             </Link>
           </div>
 
@@ -267,12 +309,12 @@ export default function Home() {
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <span className="absolute left-3 top-3 rounded-full bg-brand-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-950">
-                      ★ Popular
+                      {t('home.popularBadge', '★ Popular')}
                     </span>
                   </div>
                   <div className="flex flex-1 flex-col p-5">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-700">
-                      {dish.categoryName}
+                      {t(`category.${dish.categoryId}`, dish.categoryName)}
                     </p>
                     <h3 className="mt-1 font-display text-xl font-semibold text-gray-900">{dish.name}</h3>
                     <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-gray-500">{dish.description}</p>
@@ -283,7 +325,7 @@ export default function Home() {
                         onClick={() => handlePopularClick(dish)}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-brand-700"
                       >
-                        {multiPrice ? 'Choose' : 'Add'}
+                        {multiPrice ? t('home.choose', 'Choose') : t('home.add', 'Add')}
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
@@ -301,9 +343,11 @@ export default function Home() {
       <section className="bg-white py-16 md:py-20">
         <div className="section-container">
           <div className="mb-9 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Find your craving</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+              {t('home.cravingEyebrow', 'Find your craving')}
+            </p>
             <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-              What are you in the mood for?
+              {t('home.cravingTitle', 'What are you in the mood for?')}
             </h2>
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -322,8 +366,15 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 text-white">
                   <div>
-                    <p className="font-display text-lg font-semibold leading-tight">{category.name}</p>
-                    <p className="text-xs text-white/70">{category.items.length} dishes</p>
+                    <p className="font-display text-lg font-semibold leading-tight">
+                      {t(`category.${category.id}`, category.name)}
+                    </p>
+                    <p className="text-xs text-white/70">
+                      {t('home.dishesCount', '{count} dishes').replace(
+                        '{count}',
+                        category.items.length,
+                      )}
+                    </p>
                   </div>
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-sm transition-colors group-hover:bg-white group-hover:text-stone-900">
                     →
@@ -334,7 +385,10 @@ export default function Home() {
           </div>
           <div className="mt-7 text-center">
             <Link to="/menu" className="text-sm font-semibold text-brand-700 hover:underline">
-              Browse all {categories.length} categories →
+              {t('home.browseAll', 'Browse all {count} categories →').replace(
+                '{count}',
+                categories.length,
+              )}
             </Link>
           </div>
         </div>
@@ -345,13 +399,15 @@ export default function Home() {
         <div className="section-container">
           <div className="mb-9 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Good food, good value</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+                {t('home.offersEyebrow', 'Good food, good value')}
+              </p>
               <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-                Made for lunch breaks & lazy evenings
+                {t('home.offersTitle', 'Made for lunch breaks & lazy evenings')}
               </h2>
             </div>
             <Link to="/menu?category=combo" className="text-sm font-semibold text-brand-700 hover:underline">
-              See combo meals →
+              {t('home.seeCombos', 'See combo meals →')}
             </Link>
           </div>
           <div className="grid gap-5 md:grid-cols-3">
@@ -376,7 +432,7 @@ export default function Home() {
                   <div className="mt-4 flex items-center justify-between">
                     <span className="font-display text-xl font-semibold text-brand-300">{offer.price}</span>
                     <span className="text-sm font-semibold text-white transition-transform group-hover:translate-x-1">
-                      View →
+                      {t('home.view', 'View →')}
                     </span>
                   </div>
                 </div>
@@ -402,26 +458,32 @@ export default function Home() {
               <div className="absolute -bottom-5 right-4 max-w-[13rem] rounded-2xl border border-brand-200 bg-white p-4 shadow-medium sm:right-8">
                 <p className="font-display text-3xl font-semibold text-brand-700">{restaurantInfo.since}</p>
                 <p className="text-xs leading-relaxed text-gray-500">
-                  Serving Belonia from College Square with a kitchen that never cuts corners.
+                  {t(
+                    'home.storyBadge',
+                    'Serving Belonia from College Square with a kitchen that never cuts corners.',
+                  )}
                 </p>
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">Our story</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+                {t('home.storyEyebrow', 'Our story')}
+              </p>
               <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-                A neighbourhood kitchen, not a chain.
+                {t('home.storyTitle', 'A neighbourhood kitchen, not a chain.')}
               </h2>
               <p className="mt-4 leading-relaxed text-gray-600">
-                {restaurantInfo.name} is a neighbourhood kitchen at College Square, Belonia. Our
-                menu covers biryani, rolls, momos, fried rice, chowmein, gravies and combo meals —
-                with veg and non-veg choices for the whole table.
+                {t(
+                  'home.storyCopy',
+                  '{name} is a neighbourhood kitchen at College Square, Belonia. Our menu covers biryani, rolls, momos, fried rice, chowmein, gravies and combo meals — with veg and non-veg choices for the whole table.',
+                ).replace('{name}', restaurantInfo.name)}
               </p>
               <ul className="mt-6 space-y-3">
                 {[
-                  'Dine in, take away or order for local delivery',
-                  'Vegetarian and non-vegetarian choices',
-                  'Call or WhatsApp to place your order',
-                  restaurantInfo.hours,
+                  t('home.storyPoint1', 'Dine in, take away or order for local delivery'),
+                  t('home.storyPoint2', 'Vegetarian and non-vegetarian choices'),
+                  t('home.storyPoint3', 'Call or WhatsApp to place your order'),
+                  t('home.hoursDaily', restaurantInfo.hours),
                 ].map((point) => (
                   <li key={point} className="flex items-start gap-3 text-sm text-gray-700">
                     <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-800">✓</span>
@@ -430,7 +492,7 @@ export default function Home() {
                 ))}
               </ul>
               <Link to="/about" className="btn-secondary mt-7">
-                Read our story
+                {t('home.readStory', 'Read our story')}
               </Link>
             </div>
           </div>
@@ -441,11 +503,15 @@ export default function Home() {
       <section className="py-16 md:py-20">
         <div className="section-container">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">From our guests</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+              {t('home.reviewsEyebrow', 'From our guests')}
+            </p>
             <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-              Kind words from Belonia
+              {t('home.reviewsTitle', 'Kind words from Belonia')}
             </h2>
-            <p className="mt-2 text-gray-600">A few of the reviews that make the long days worth it.</p>
+            <p className="mt-2 text-gray-600">
+              {t('home.reviewsCopy', 'A few of the reviews that make the long days worth it.')}
+            </p>
           </div>
 
           <div className="mx-auto mt-9 max-w-3xl">
@@ -459,7 +525,11 @@ export default function Home() {
                   “{review.comment}”
                 </blockquote>
                 <p className="mt-5 font-semibold text-gray-900">{review.author}</p>
-                <p className="text-sm text-gray-500">{review.source} review · {review.date}</p>
+                <p className="text-sm text-gray-500">
+                  {t('home.reviewSource', '{source} review · {date}')
+                    .replace('{source}', review.source)
+                    .replace('{date}', review.date)}
+                </p>
               </div>
 
               <div className="mt-7 flex items-center justify-between gap-4 border-t border-surface-200 pt-5">
@@ -508,7 +578,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="text-sm font-semibold text-brand-700 hover:underline"
               >
-                Read all reviews on Google →
+                {t('home.readAllReviews', 'Read all reviews on Google →')}
               </a>
             </div>
           </div>
@@ -520,13 +590,15 @@ export default function Home() {
         <div className="section-container">
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">A peek inside</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-700">
+                {t('home.galleryEyebrow', 'A peek inside')}
+              </p>
               <h2 className="mt-2 font-display text-3xl font-semibold text-gray-900 md:text-4xl">
-                Come hungry. Stay a while.
+                {t('home.galleryTitle', 'Come hungry. Stay a while.')}
               </h2>
             </div>
             <Link to="/gallery" className="text-sm font-semibold text-brand-700 hover:underline">
-              View the gallery →
+              {t('home.viewGallery', 'View the gallery →')}
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -555,13 +627,17 @@ export default function Home() {
         <div className="section-container relative">
           <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">Come say hello</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
+                {t('home.visitEyebrow', 'Come say hello')}
+              </p>
               <h2 className="mt-3 font-display text-3xl font-semibold md:text-4xl">
-                Lunch, dinner or a table full of friends.
+                {t('home.visitTitle', 'Lunch, dinner or a table full of friends.')}
               </h2>
               <p className="mt-3 max-w-xl leading-relaxed text-gray-300">
-                Find us at College Square, Belonia. Walk in for dine-in, call ahead for takeaway,
-                or message us on WhatsApp and we’ll get the kitchen ready.
+                {t(
+                  'home.visitCopy',
+                  'Find us at College Square, Belonia. Walk in for dine-in, call ahead for takeaway, or message us on WhatsApp and we’ll get the kitchen ready.',
+                )}
               </p>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <a
@@ -573,16 +649,16 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="btn-primary"
                 >
-                  Order on WhatsApp
+                  {t('home.orderWhatsApp', 'Order on WhatsApp')}
                 </a>
                 <Link to="/contact#reserve" className="btn-secondary border-brand-300 bg-brand-100 text-brand-900">
-                  Reserve a table
+                  {t('home.reserveTable', 'Reserve a table')}
                 </Link>
                 <a
                   href={`tel:${restaurantInfo.phoneRaw}`}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-white/20 px-5 py-3 text-sm font-semibold text-white hover:bg-white/5"
                 >
-                  Call {restaurantInfo.phone}
+                  {t('home.callPhone', 'Call {phone}').replace('{phone}', restaurantInfo.phone)}
                 </a>
               </div>
             </div>
@@ -591,21 +667,23 @@ export default function Home() {
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">📍</span>
                   <div>
-                    <p className="font-semibold text-white">Find us</p>
+                    <p className="font-semibold text-white">{t('home.findUs', 'Find us')}</p>
                     <p className="mt-0.5 text-gray-300">{restaurantInfo.address}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">🕗</span>
                   <div>
-                    <p className="font-semibold text-white">Hours</p>
-                    <p className="mt-0.5 text-gray-300">{restaurantInfo.hours}</p>
+                    <p className="font-semibold text-white">{t('home.hours', 'Hours')}</p>
+                    <p className="mt-0.5 text-gray-300">
+                      {t('footer.hours', restaurantInfo.hours)}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">📞</span>
                   <div>
-                    <p className="font-semibold text-white">Call ahead</p>
+                    <p className="font-semibold text-white">{t('home.callAhead', 'Call ahead')}</p>
                     <a href={`tel:${restaurantInfo.phoneRaw}`} className="mt-0.5 block text-gray-300 hover:text-brand-300">
                       {restaurantInfo.phone}
                     </a>
@@ -618,7 +696,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-stone-900 hover:bg-brand-50"
               >
-                Get directions
+                {t('home.getDirections', 'Get directions')}
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>

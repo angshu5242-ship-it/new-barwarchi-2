@@ -13,20 +13,68 @@ CREATE TABLE IF NOT EXISTS orders (
   status TEXT NOT NULL DEFAULT 'new',
   whatsapp_sent BOOLEAN NOT NULL DEFAULT false,
   phone_verified BOOLEAN NOT NULL DEFAULT false,
+  delivery_zone TEXT,
+  delivery_fee INTEGER NOT NULL DEFAULT 0,
+  discount INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  scheduled_for TIMESTAMPTZ,
+  prep_minutes INTEGER NOT NULL DEFAULT 20,
+  ready_at TIMESTAMPTZ,
+  payment_method TEXT NOT NULL DEFAULT 'pay_later',
+  payment_status TEXT NOT NULL DEFAULT 'pending',
+  loyalty_reward_used BOOLEAN NOT NULL DEFAULT false,
+  loyalty_stamp_awarded BOOLEAN NOT NULL DEFAULT false,
+  review_requested_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS delivery_zone TEXT;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS delivery_fee INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS total INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS prep_minutes INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS ready_at TIMESTAMPTZ;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'pay_later';
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS loyalty_reward_used BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS loyalty_stamp_awarded BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS review_requested_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS orders_phone_idx ON orders (customer_phone);
 CREATE INDEX IF NOT EXISTS orders_created_idx ON orders (created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_ready_idx ON orders (ready_at);
+CREATE INDEX IF NOT EXISTS orders_review_idx ON orders (status, review_requested_at);
 
 CREATE TABLE IF NOT EXISTS customers (
   phone TEXT PRIMARY KEY,
   name TEXT,
   address TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Phone-based loyalty card. A stamp is awarded once when an order is completed.
+CREATE TABLE IF NOT EXISTS loyalty_accounts (
+  phone TEXT PRIMARY KEY,
+  stamps INTEGER NOT NULL DEFAULT 0,
+  reward_available BOOLEAN NOT NULL DEFAULT false,
+  total_completed INTEGER NOT NULL DEFAULT 0,
+  rewards_redeemed INTEGER NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

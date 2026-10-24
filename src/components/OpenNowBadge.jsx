@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSiteData } from '../context/SiteDataContext';
+import { useLanguage } from '../context/LanguageContext';
 import { getOpenStatus } from '../utils/openStatus';
 
 export default function OpenNowBadge({ className = '', showDetail = true }) {
   const { restaurantInfo } = useSiteData();
+  const { t } = useLanguage();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -31,8 +33,21 @@ export default function OpenNowBadge({ className = '', showDetail = true }) {
           }`}
         />
       </span>
-      <span>{status.label}</span>
-      {showDetail && <span className="font-normal opacity-80">· {status.detail}</span>}
+      <span>{status.isOpen ? t('open.openNow', 'Open now') : t('open.closedNow', 'Closed now')}</span>
+      {showDetail && (
+        <span className="font-normal opacity-80">
+          ·{' '}
+          {status.detail === 'Closes at 10 PM'
+            ? t('open.closesAt10', 'Closes at 10 PM')
+            : status.detail === 'Kitchen is taking orders'
+              ? t('open.takingOrders', 'Kitchen is taking orders')
+              : status.detail === 'Opens at 8 AM'
+                ? t('open.opensAt8', 'Opens at 8 AM')
+                : status.detail === 'Opens tomorrow at 8 AM'
+                  ? t('open.opensTomorrow8', 'Opens tomorrow at 8 AM')
+                  : status.detail}
+        </span>
+      )}
     </span>
   );
 }

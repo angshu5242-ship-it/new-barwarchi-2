@@ -5,6 +5,7 @@ import { CartProvider, CartSidebar } from './components/Header';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { SiteDataProvider } from './context/SiteDataContext';
+import { LanguageProvider } from './context/LanguageContext';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Gallery from './pages/Gallery';
@@ -14,7 +15,10 @@ import Admin from './pages/Admin';
 import Staff from './pages/Staff';
 import MenuPrint from './pages/MenuPrint';
 import Order from './pages/Order';
+import TrackOrder from './pages/TrackOrder';
+import Catering from './pages/Catering';
 import NotFound from './pages/NotFound';
+import PwaInstall from './components/PwaInstall';
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -71,6 +75,9 @@ function AppShell() {
           <Route path="/" element={<Home />} />
           <Route path="/menu" element={<Menu />} />
           <Route path="/order" element={<Order />} />
+          <Route path="/track/:orderId" element={<TrackOrder />} />
+          <Route path="/track" element={<TrackOrder />} />
+          <Route path="/catering" element={<Catering />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
@@ -79,6 +86,7 @@ function AppShell() {
       </main>
       <Footer />
       <CartSidebar />
+      <PwaInstall />
     </div>
   );
 }
@@ -87,12 +95,14 @@ function App() {
   return (
     <Router>
       <SiteDataProvider>
-        <ThemeProvider>
-          <CartProvider>
-            <ScrollToTop />
-            <AppShell />
-          </CartProvider>
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <CartProvider>
+              <ScrollToTop />
+              <AppShell />
+            </CartProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </SiteDataProvider>
     </Router>
   );

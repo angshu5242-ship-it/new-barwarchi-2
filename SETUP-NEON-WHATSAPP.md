@@ -227,7 +227,29 @@ admin. Deactivating a staff member stops their WhatsApp alerts and blocks new si
 - Change the status to Confirmed → Preparing → Ready → Out for delivery → Completed.
 - The `x-admin-password` header uses `ADMIN_PASSWORD` (default `nb2admin2024`). Keep the server variable and the admin login password in sync.
 
-## 9. Test checklist
+## 9. Ordering, delivery, loyalty and reviews
+
+Open **Admin → Ordering & payment** to publish:
+
+- **UPI:** enter the exact VPA and payee name, then enable UPI. A malformed ID is automatically
+  kept disabled. Customers see a QR and UPI intent link after placing an order; staff mark the
+  payment paid only after checking the UPI app.
+- **Delivery areas:** add each area/landmark group and its fee. The server validates the chosen
+  area and recalculates the fee; a browser cannot invent a cheaper zone.
+- **Loyalty:** one stamp per completed online order. The current 5-stamp / ₹50 terms are
+  provisional and must be confirmed by the owner before launch.
+- **Preparation times:** the options customers can choose at checkout.
+
+Additional setup:
+
+- Set `GOOGLE_REVIEW_URL` to the restaurant's exact Google review link. Until then, staff review
+  requests and the daily cron stay paused; the app never invents a listing URL.
+- Set `CRON_SECRET` and deploy. `vercel.json` calls `/api/review-cron` daily at 21:00 IST.
+  Optionally set `WHATSAPP_REVIEW_TEMPLATE_NAME` and `..._LANG`; the approved template needs two
+  body parameters: customer name and review URL.
+- Staff can mark a dish sold out in `/staff`; the public menu, cart and checkout reject it.
+
+## 10. Test checklist
 
 - [ ] `/api/orders?health=1` shows `database:true` and `otp:true`
 - [ ] **Send OTP on WhatsApp** returns success; the code arrives on the customer's number
@@ -242,6 +264,13 @@ admin. Deactivating a staff member stops their WhatsApp alerts and blocks new si
 - [ ] A staff account signs in at `/staff` and sees the order
 - [ ] A staff WhatsApp number receives the `new_order_alert` template
 - [ ] Staff can change an order status and the admin Orders tab shows the same status
+- [ ] Staff can mark a dish sold out and checkout rejects it
+- [ ] Delivery order total equals subtotal + the published zone fee
+- [ ] Loyalty lookup shows stamps and a completed order adds one stamp
+- [ ] `/track/<order-id>` shows the status timeline and updates after a staff status change
+- [ ] UPI appears only after a valid UPI ID is enabled; staff can mark it paid
+- [ ] Admin dashboard shows today's orders, revenue, top dishes and loyalty counts
+- [ ] `GOOGLE_REVIEW_URL` is blank or set to the owner's exact link; no fallback URL is invented
 - [ ] Customer profile is pre-filled on the next visit in the same browser tab
 - [ ] `REQUIRE_PHONE_VERIFICATION=true` blocks unverified API orders
 - [ ] Vercel deployment uses the same environment variables and `OTP_DEV_MODE` is **not** set

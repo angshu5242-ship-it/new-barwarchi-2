@@ -1,5 +1,7 @@
 import { ensureSchema, getSql } from './orders.js';
 import { sanitizeMenuStyle } from '../src/data/menuStyles.js';
+import { restaurantInfo as defaultRestaurantInfo } from '../src/data/site.js';
+import { readAvailability, readSettings, writeSettings } from './settings.js';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nb2admin2024';
 const MAX_SITE_CONTENT_BYTES = 3_500_000;
@@ -24,6 +26,13 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function normalizeGoogleListingUrl(value) {
+  const url = String(value || '');
+  const hasPlaceId = /0x[0-9a-f]+:0x[0-9a-f]+/i.test(url) && !/0x0:0x/i.test(url);
+  if (url.includes('/maps/place/') && hasPlaceId) return url;
+  return defaultRestaurantInfo.googleListingUrl;
+}
+
 function normalizeSiteContent(value) {
   const content = parseValue(value);
   if (!isPlainObject(content)) return null;
@@ -41,7 +50,15 @@ function normalizeSiteContent(value) {
     return null;
   }
 
-  return { categories, galleryImages, heroImages, restaurantInfo };
+  return {
+    categories,
+    galleryImages,
+    heroImages,
+    restaurantInfo: {
+      ...restaurantInfo,
+      googleListingUrl: normalizeGoogleListingUrl(restaurantInfo.googleListingUrl),
+    },
+  };
 }
 
 export async function getSiteSettings() {
@@ -49,13 +66,23 @@ export async function getSiteSettings() {
   if (!sql) {
     return {
       status: 200,
-      body: { ok: true, persisted: false, settings: {} },
+      body: {
+        ok: true,
+        persisted: false,
+        settings: {
+          config: await readSettings(null),
+          availability: await readAvailability(null),
+        },
+      },
     };
   }
 
   await ensureSchema();
   const rows = await sql`SELECT key, value, updated_at FROM site_settings`;
-  const settings = {};
+  const settings = {
+    config: await readSettings(sql),
+    availability: await readAvailability(sql),
+  };
 
   for (const row of rows) {
     if (row.key === 'menuStyle') {
@@ -171,11 +198,30 @@ export async function saveSiteContent(content, headers) {
   };
 }
 
+export async function saveSiteConfig(config, headers) {
+  if (!adminAuthorized(headers)) {
+    return { status: 401, body: { ok: false, error: 'Admin password is required.' } };
+  }
+  const sql = getSql();
+  if (sql) await ensureSchema();
+  const current = await readSettings(sql);
+  const result = await writeSettings(sql, {
+    ...current,
+    ...(config && typeof config === 'object' ? config : {}),
+  });
+  return {
+    status: 200,
+    body: { ok: true, persisted: result.persisted, config: result.settings },
+  };
+}
+
 export async function handleSiteRequest({ method = 'GET', headers = {}, body = null }) {
   try {
     if (method === 'GET') return await getSiteSettings();
 
     if (method === 'POST') {
+      if (body?.config !== undefined) return await saveSiteConfig(body.config, headers);
+
       const siteContent = body?.siteContent ?? body?.content;
       if (siteContent !== undefined) return await saveSiteContent(siteContent, headers);
 

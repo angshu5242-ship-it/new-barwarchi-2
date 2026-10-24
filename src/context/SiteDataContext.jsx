@@ -10,6 +10,7 @@ import { menuCategories as defaultMenuCategories } from '../data/menu';
 import { galleryImages as defaultGalleryImages } from '../data/gallery';
 import { heroImages as defaultHeroImages, restaurantInfo as defaultRestaurantInfo } from '../data/site';
 import { defaultMenuStyle, sanitizeMenuStyle } from '../data/menuStyles';
+import { defaultSiteConfig, normalizeSiteConfig } from '../data/delivery';
 import { getSiteSettings, saveSiteContent, saveSiteMenuStyle } from '../utils/siteApi';
 
 const STORAGE_KEYS = {
@@ -94,7 +95,12 @@ function normalizeHero(images) {
 
 function normalizeInfo(info) {
   if (!info || typeof info !== 'object') return defaultRestaurantInfo;
-  return { ...defaultRestaurantInfo, ...info };
+  const next = { ...defaultRestaurantInfo, ...info };
+  const url = String(next.googleListingUrl || '');
+  if (!url.includes('/maps/place/') || /0x0:0x/i.test(url)) {
+    next.googleListingUrl = defaultRestaurantInfo.googleListingUrl;
+  }
+  return next;
 }
 
 function normalizeContent(content) {
@@ -149,6 +155,8 @@ export function SiteDataProvider({ children }) {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [remoteState, setRemoteState] = useState('loading');
   const [contentPublished, setContentPublished] = useState(false);
+  const [siteConfig, setSiteConfig] = useState(defaultSiteConfig);
+  const [soldOut, setSoldOut] = useState([]);
 
   useEffect(() => {
     const handleStorage = (event) => {
@@ -187,6 +195,11 @@ export function SiteDataProvider({ children }) {
 
         const settings = result.data?.settings || {};
 
+        if (settings.config) {
+          setSiteConfig(normalizeSiteConfig(settings.config));
+        }
+        setSoldOut(settings.availability?.soldOut || []);
+
         if (settings.menuStyle) {
           const next = sanitizeMenuStyle(settings.menuStyle);
           setMenuStyle(next);
@@ -223,6 +236,35 @@ export function SiteDataProvider({ children }) {
       cancelled = true;
     };
   }, []);
+
+  const refreshSiteConfig = useCallback(async () => {
+    const result = await getSiteSettings();
+    if (!result.ok) return result;
+    const settings = result.data?.settings || {};
+    if (settings.config) setSiteConfig(normalizeSiteConfig(settings.config));
+    setSoldOut(settings.availability?.soldOut || []);
+    return result;
+  }, []);
+
+  const isSoldOut = useCallback(
+    (itemOrId) => {
+      const id = typeof itemOrId === 'object' ? itemOrId?.id : itemOrId;
+      return soldOut.includes(String(id));
+    },
+    [soldOut],
+  );
+
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') refreshSiteConfig();
+    };
+    const timer = window.setInterval(refreshIfVisible, 60000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
+  }, [refreshSiteConfig]);
 
   const saveAll = useCallback(
     async (next = {}, adminPassword) => {
@@ -434,6 +476,11 @@ export function SiteDataProvider({ children }) {
       lastSavedAt,
       remoteState,
       contentPublished,
+      siteConfig,
+      soldOut,
+      isSoldOut,
+      setSoldOut,
+      refreshSiteConfig,
       saveAll,
       resetAll,
       importData,
@@ -461,6 +508,11 @@ export function SiteDataProvider({ children }) {
       lastSavedAt,
       remoteState,
       contentPublished,
+      siteConfig,
+      soldOut,
+      isSoldOut,
+      setSoldOut,
+      refreshSiteConfig,
       saveAll,
       resetAll,
       importData,
